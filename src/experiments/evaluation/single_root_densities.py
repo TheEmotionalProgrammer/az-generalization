@@ -288,7 +288,7 @@ if __name__ == "__main__":
 
     TEST_CONFIG = "MAZE_RL" # NO_OBSTS, OBST, MAZE_RL, MAZE_LR
 
-    parser.add_argument("--ENV", type=str, default="FROZENLAKE", help="Environment name")
+    parser.add_argument("--ENV", type=str, default="GRIDWORLD", help="Environment name")
 
     parser.add_argument("--map_size", type=int, default= map_size, help="Map size")
     parser.add_argument("--test_config", type=str, default= TEST_CONFIG, help="Config desc name")
@@ -379,9 +379,9 @@ if __name__ == "__main__":
     args.test_env_id = f"GridWorldNoObst{args.map_size}x{args.map_size}-v1"
     args.test_env_desc = f"{args.map_size}x{args.map_size}_{args.test_config}"
     if args.map_size == 8 and args.train_config == "NO_OBST":
-        args.model_file = f"hyper/AZTrain_env=GridWorldNoObst8x8-v1_evalpol=visit_iterations=50_budget=64_df=0.95_lr=0.001_nstepslr=2_seed={single_train_seed}/checkpoint.pth"
+        args.model_file = f"hyper/AZTrain_env=8x8_NO_OBST_evalpol=visit_iterations=50_budget=64_df=0.95_lr=0.001_nstepslr=2_seed={single_train_seed}/checkpoint.pth"
     elif args.map_size == 16 and args.train_config == "NO_OBST":
-        args.model_file = f"hyper/AZTrain_env=GridWorldNoObst16x16-v1_evalpol=visit_iterations=60_budget=128_df=0.95_lr=0.003_nstepslr=2_seed={single_train_seed}/checkpoint.pth"
+        args.model_file = f"hyper/AZTrain_env=16x16_NO_OBST_evalpol=visit_iterations=60_budget=128_df=0.95_lr=0.003_nstepslr=2_seed={single_train_seed}/checkpoint.pth"
     elif args.map_size == 8 and args.train_config == "MAZE_RL":
         args.model_file = f"hyper/AZTrain_env=8x8_MAZE_RL_evalpol=visit_iterations=150_budget=64_df=0.95_lr=0.001_nstepslr=2_c=0.5_seed={single_train_seed}/checkpoint.pth"
     elif args.map_size == 8 and args.train_config == "MAZE_LR":

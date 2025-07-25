@@ -380,9 +380,9 @@ def eval_budget_sweep(
 
         if config["ENV"] == "GRIDWORLD":
             if config["map_size"] == 8 and config["train_config"] == "NO_OBST":
-                model_file = f"hyper/AZTrain_env=GridWorldNoObst8x8-v1_evalpol=visit_iterations=50_budget=64_df=0.95_lr=0.001_nstepslr=2_seed={model_seed}/checkpoint.pth"
+                model_file = f"hyper/AZTrain_env=8x8_NO_OBST_evalpol=visit_iterations=50_budget=64_df=0.95_lr=0.001_nstepslr=2_seed={model_seed}/checkpoint.pth"
             elif config["map_size"] == 16 and config["train_config"] == "NO_OBST":
-                model_file = f"hyper/AZTrain_env=GridWorldNoObst16x16-v1_evalpol=visit_iterations=60_budget=128_df=0.95_lr=0.003_nstepslr=2_seed={model_seed}/checkpoint.pth"
+                model_file = f"hyper/AZTrain_env=16x16_NO_OBST_evalpol=visit_iterations=60_budget=128_df=0.95_lr=0.003_nstepslr=2_seed={model_seed}/checkpoint.pth"
             elif config["map_size"] == 8 and config["train_config"] == "MAZE_RL":
                 model_file = f"hyper/AZTrain_env=8x8_MAZE_RL_evalpol=visit_iterations=150_budget=64_df=0.95_lr=0.001_nstepslr=2_c=0.5_seed={model_seed}/checkpoint.pth"
             elif config["map_size"] == 8 and config["train_config"] == "MAZE_LR":
@@ -492,8 +492,8 @@ if __name__ == "__main__":
     # Environment configurations
     parser.add_argument("--ENV", type=str, default="GRIDWORLD", help="Environment name")
     parser.add_argument("--map_size", type=int, default= 8, help="Map size")
-    parser.add_argument("--train_config", type=str, default= "MAZE_LR", help="Config desc name")
-    parser.add_argument("--test_config", type=str, default= "MAZE_RL", help="Config desc name")
+    parser.add_argument("--train_config", type=str, default= "NO_OBST", help="Config desc name")
+    parser.add_argument("--test_config", type=str, default= "NARROW", help="Config desc name")
 
     # Run configurations
     parser.add_argument("--wandb_logs", type=bool, default= False, help="Enable wandb logging")
