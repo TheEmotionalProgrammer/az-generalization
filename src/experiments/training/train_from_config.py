@@ -44,7 +44,7 @@ from policies.tree_policies import tree_eval_dict
 from policies.selection_distributions import selection_dict_fn
 from policies.value_transforms import value_transform_dict
 
-from environments.register import register_all
+from environments.register import register
 
 from experiments.parameters import base_parameters, env_challenges, grid_env_descriptions, parking_simple_obstacles
 
@@ -108,7 +108,7 @@ def train_from_config(
     hparams = wandb.config
     print(hparams)
 
-    register_all()
+    register()
 
     env = gym.make(**hparams["env_params"])
     if isinstance(env, ObstaclesGridEnv):

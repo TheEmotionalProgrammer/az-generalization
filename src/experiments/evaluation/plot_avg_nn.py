@@ -8,7 +8,7 @@ import numpy as np
 
 import torch as th
 
-from environments.register import register_all
+from environments.register import register
 
 
 from az.model import (

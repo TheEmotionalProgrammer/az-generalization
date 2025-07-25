@@ -29,7 +29,7 @@ from policies.selection_distributions import selection_dict_fn
 
 from policies.value_transforms import value_transform_dict
 
-from environments.register import register_all
+from environments.register import register
 
 import argparse
 from experiments.parameters import base_parameters, env_challenges, grid_env_descriptions
@@ -370,7 +370,7 @@ def eval_budget_sweep(
     else:
         hparams = config
 
-    register_all()  # Register custom environments
+    register()  # Register custom environments
 
     # Store results for plotting
     results_data = []
@@ -400,7 +400,7 @@ def eval_budget_sweep(
 
                 #print(f"Running evaluation for planning_budget={budget}")
 
-                agent, tree_evaluation_policy, observation_embedding, planning_budget = agent_from_config(config_copy)
+                agent, tree_evaluation_policy, observation_embedding, _ = agent_from_config(config_copy)
                 test_env = gym.make(**config_copy["test_env"])
                 seeds = [seed]
 
@@ -409,7 +409,7 @@ def eval_budget_sweep(
                     env=test_env,
                     tree_evaluation_policy=tree_evaluation_policy,
                     observation_embedding=observation_embedding,
-                    planning_budget=planning_budget,
+                    planning_budget=budget,
                     max_episode_length=config_copy["max_episode_length"],
                     seeds=seeds,
                     temperature=config_copy["eval_temp"],
@@ -636,6 +636,6 @@ if __name__ == "__main__":
     # Execute the evaluation
 
     if args.run_full_eval:
-        eval_budget_sweep(config=run_config, budgets= [64],  num_train_seeds=args.train_seeds, num_eval_seeds=args.eval_seeds, final = args.final, save=args.save)
+        eval_budget_sweep(config=run_config, budgets= [8,16,32],  num_train_seeds=args.train_seeds, num_eval_seeds=args.eval_seeds, final = args.final, save=args.save)
     else: 
         eval_from_config(config=run_config, eval_seed=single_eval_seed)
