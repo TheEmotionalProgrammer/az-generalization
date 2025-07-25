@@ -1,0 +1,22 @@
+name: az10
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - ipykernel
+  - pytorch
+  - tqdm
+  - numpy
+  - pytest
+  - tensorboard
+  - graphviz
+  - matplotlib
+  - wandb
+  - seaborn
+  - pip
+  - pip:
+    - torchrl
+    - "gymnasium[toy-text] @ git+https://github.com/albinjal/Gymnasium@main"
+    - ipywidgets
