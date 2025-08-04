@@ -3,7 +3,6 @@ import torch as th
 from core.mcts import MCTS, NoLoopsMCTS
 from az.model import AlphaZeroModel
 from core.node import Node
-from environments.gridworld.heuristic_value import grid_compute_distances, grid_perfect_value
 
 class AlphaZeroMCTS(MCTS):
 
@@ -28,18 +27,13 @@ class AlphaZeroMCTS(MCTS):
     dir_alpha: float
 
     def __init__(
-        self, model: AlphaZeroModel, *args, dir_epsilon=0.0, dir_alpha=0.3, value_estimate = "nn", **kwargs
+        self, model: AlphaZeroModel, *args, dir_epsilon=0.0, dir_alpha=0.3, **kwargs
     ):
         super().__init__(*args, **kwargs)
         self.model = model
         self.dir_epsilon = dir_epsilon
         self.dir_alpha = dir_alpha
-        self.value_estimate = value_estimate
-    
-        if self.value_estimate == "perfect":
-            desc = self.model.env.unwrapped.desc.tolist() # Get the original desc of the training env
-            self.distances = grid_compute_distances(desc) # Compute the distances from each cell to the goal cell
-            
+                
     @th.no_grad()
     def value_function(self, node: Node) -> float:
         """
@@ -77,7 +71,7 @@ class AlphaZeroMCTS(MCTS):
         else:
             node.prior_policy = policy
 
-        return value if self.value_estimate == "nn" else grid_perfect_value(self.distances, node.observation, node.env.unwrapped.ncol, self.discount_factor)
+        return value 
 
 class AlphaZeroNoLoops(NoLoopsMCTS, AlphaZeroMCTS):
     """

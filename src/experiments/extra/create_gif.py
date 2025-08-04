@@ -39,6 +39,4 @@ if __name__ == "__main__":
     create_gif(dir_name)
     dir_name = "policy_values"
     create_gif(dir_name)
-    dir_name = "variances"
-    create_gif(dir_name)
 

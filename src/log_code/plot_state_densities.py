@@ -91,20 +91,6 @@ def calculate_policy_value_sums(tree: Node, ncols, nrows):
         density[row, col] = value
     return density
 
-def calculate_variance_means(tree: Node, ncols, nrows):
-    
-    goal_coord = (ncols - 1, nrows - 1)
-
-    variance_means = tree.mean_variances_dict()
-    density = np.zeros((nrows, ncols))
-    for state, value in variance_means.items():
-        if state == None:
-            row, col = goal_coord
-        else:
-            row, col = obs_to_cords(state, ncols)
-        density[row, col] = value
-    return density
-
 def plot_density(density, root_state, obst_coords, ncols, nrows, cmap, ax=None):
 
     goal_coord = (ncols - 1, nrows - 1)

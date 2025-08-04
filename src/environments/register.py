@@ -23,7 +23,7 @@ def register():
                 ],
             "map_name": None,
             "is_slippery": False,
-            "terminate_on_hole": False,
+            "terminate_on_obst": False,
             "hole_reward": 0,
         },
     )
@@ -52,7 +52,7 @@ def register():
             ],
         "map_name": None,
         "is_slippery": False,
-        "terminate_on_hole": False,
+        "terminate_on_obst": False,
         "hole_reward": 0,
     },
     )

@@ -8,8 +8,6 @@ import multiprocessing
 import gymnasium as gym
 import wandb
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
 
 from log_code.metrics import calc_metrics
 from experiments.evaluation.eval_agent import eval_agent
@@ -17,17 +15,13 @@ from core.mcts import RandomRolloutMCTS
 from environments.observation_embeddings import ObservationEmbedding, embedding_dict
 from az.azmcts import AlphaZeroMCTS, AlphaZeroNoLoops
 
-from experiments.extra.create_gif import create_gif
-
 from az.model import (
     AlphaZeroModel,
     models_dict
 )
 
 from policies.tree_policies import tree_eval_dict
-from policies.selection_distributions import selection_dict_fn
-
-from policies.value_transforms import value_transform_dict
+from policies.selection_policies import selection_dict_fn
 
 from environments.register import register
 
@@ -36,7 +30,6 @@ from experiments.parameters import base_parameters, env_challenges, grid_env_des
 
 
 from log_code.tree_visualizer import visualize_trees
-from log_code.plot_state_densities import plot_density, calculate_density, calculate_nn_value_means, calculate_policy_value_means, calculate_variance_means
 
 def agent_from_config(hparams: dict):
     
@@ -45,23 +38,12 @@ def agent_from_config(hparams: dict):
     discount_factor = hparams["discount_factor"]
 
     tree_evaluation_policy = tree_eval_dict(
-        hparams["eval_param"],
-        discount_factor,
-        hparams["puct_c"],
-        hparams["tree_temperature"],
-        value_transform=value_transform_dict[hparams["tree_value_transform"]],
+        temperature = hparams["tree_temperature"],
     )[hparams["tree_evaluation_policy"]]
 
-    #print("evaltemp",tree_evaluation_policy.temperature)
-
     selection_policy = selection_dict_fn(
-        hparams["puct_c"],
-        tree_evaluation_policy,
-        discount_factor,
-        value_transform=value_transform_dict[hparams["selection_value_transform"]],
+        c = hparams["puct_c"],
     )[hparams["selection_policy"]]
-
-    #print("seltemp",selection_policy.temperature)
 
     if (
         "root_selection_policy" not in hparams
@@ -71,10 +53,7 @@ def agent_from_config(hparams: dict):
 
 
     root_selection_policy = selection_dict_fn(
-        hparams["puct_c"],
-        tree_evaluation_policy,
-        discount_factor,
-        value_transform_dict[hparams["selection_value_transform"]],
+        c = hparams["puct_c"],
     )[hparams["root_selection_policy"]]
 
     observation_embedding: ObservationEmbedding = embedding_dict[
@@ -120,7 +99,6 @@ def agent_from_config(hparams: dict):
                 dir_epsilon=dir_epsilon,
                 dir_alpha=dir_alpha,
                 discount_factor=discount_factor,
-                value_estimate=hparams["value_estimate"],
                 reuse_tree=hparams["reuse_tree"],
                 block_loops=hparams["block_loops"],
                 loops_threshold= hparams["loops_threshold"],
@@ -133,7 +111,6 @@ def agent_from_config(hparams: dict):
                 dir_epsilon=dir_epsilon,
                 dir_alpha=dir_alpha,
                 discount_factor=discount_factor,
-                value_estimate=hparams["value_estimate"],
             )
         
     return (
@@ -187,10 +164,9 @@ def eval_from_config(
         seeds=seeds,
         temperature=hparams["eval_temp"],
         workers=workers,
-        azdetection= (hparams["agent_type"] == "mini-trees" or hparams["agent_type"] == "mega-tree"),
-        unroll_budget= hparams["unroll_budget"],
         render=hparams["render"],
         return_trees=hparams["visualize_trees"] or hparams["plot_tree_densities"],
+        verbose=hparams["verbose"],
     )
 
     if hparams["visualize_trees"]:
@@ -198,77 +174,6 @@ def eval_from_config(
         trees = trees[0]
         print(f"Visualizing {len(trees)} trees...")
         visualize_trees(trees, "tree_visualizations")
-
-    if hparams["plot_tree_densities"]:
-        results, trees = results
-        trees = trees[0]
-
-        test_desc = hparams["test_env"]["desc"]
-
-        obst_coords = []
-        for i in range(len(test_desc)):
-            for j in range(len(test_desc[0])):
-                if test_desc[i][j] == "H":
-                    obst_coords.append((i, j))
-        
-        for i, tree in enumerate(trees):
-
-            #states_density = calculate_density(tree, len(test_desc[0]), len(test_desc))
-            policy_values = calculate_policy_value_means(tree, len(test_desc[0]), len(test_desc))
-            #nn_values = calculate_nn_value_means(tree, len(test_desc[0]), len(test_desc))
-            #variances = calculate_variance_means(tree, len(test_desc[0]), len(test_desc))
-
-            #states_cmap = sns.diverging_palette(10, 120, as_cmap=True, center="light")
-            values_cmap = sns.diverging_palette(120, 10, as_cmap=True, center="light")
-            # nn_values_cmap = sns.diverging_palette(120, 10, as_cmap=True, center="light")
-            # variances_cmap = sns.diverging_palette(20, 240, as_cmap=True, center="light")
-
-            # ax = plot_density(states_density, tree.observation, obst_coords, len(test_desc[0]), len(test_desc), cmap=states_cmap)
-
-            # ax.set_title(f"State Visitation Counts at step {i}")
-
-            # # If no path to folder, create it
-            # if not os.path.exists("states_density"):
-            #     os.makedirs("states_density")
-
-            # plt.savefig(f"states_density/{i}.png")
-            # plt.close()
-
-
-            ax = plot_density(policy_values, tree.observation, obst_coords, len(test_desc[0]), len(test_desc), cmap=values_cmap)
-
-            ax.set_title(f"Mean Policy Values at step {i}")
-
-            # If no path to folder, create it
-            if not os.path.exists("policy_values"):
-                os.makedirs("policy_values")
-
-            plt.savefig(f"policy_values/{i}.png")
-            plt.close()
-
-            # ax = plot_density(variances, tree.observation, obst_coords, len(test_desc[0]), len(test_desc), cmap=variances_cmap)
-
-            # ax.set_title(f"Mean Variances at step {i}")
-
-            # # If no path to folder, create it
-            # if not os.path.exists("variances"):
-            #     os.makedirs("variances")
-
-            # plt.savefig(f"variances/{i}.png")
-            # plt.close()
-
-            # ax = plot_density(nn_values, tree.observation, obst_coords, len(test_desc[0]), len(test_desc), cmap=nn_values_cmap)
-
-            # ax.set_title(f"Mean NN Values at step {i}")
-
-            # # If no path to folder, create it
-            # if not os.path.exists("nn_values"):
-            #     os.makedirs("nn_values")
-
-            # plt.savefig(f"nn_values/{i}.png")
-            # plt.close()
-
-        create_gif("states_density")
             
     episode_returns, discounted_returns, time_steps, entropies = calc_metrics(
         results, agent.discount_factor, test_env.action_space.n
@@ -286,12 +191,6 @@ def eval_from_config(
         trajectories.append(re)
 
     eval_res = {
-        # wandb logs
-        #"Evaluation/Returns": wandb.Histogram(np.array((episode_returns))),
-        #"Evaluation/Discounted_Returns": wandb.Histogram(np.array((discounted_returns))),
-        #"Evaluation/Timesteps": wandb.Histogram(np.array((time_steps))),
-        # "Evaluation/Entropies": wandb.Histogram(np.array(((th.sum(entropies, dim=-1) / time_steps)))),
-
         # standard logs
         "Evaluation/Mean_Returns": episode_returns.mean().item(),
         "Evaluation/Mean_Discounted_Returns": discounted_returns.mean().item(),
@@ -334,16 +233,12 @@ def eval_budget_sweep(
     """
 
     if config["ENV"] == "GRIDWORLD":
-        if config["agent_type"] == "mini-trees" or config["agent_type"] == "mega-tree":
-            run_name = f"Algorithm_({config['agent_type']})_EvalPol_({config['tree_evaluation_policy']})_SelPol_({config['selection_policy']})_c_({config['puct_c']})_Predictor_({config['predictor']})_n_({config['unroll_budget']})_eps_({config['threshold']})_ValueSearch_({config['value_search']})_ValueEst_({config['value_estimate']})_UpdateEst_({config['update_estimator']})_{config['map_size']}x{config['map_size']}_{config['train_config']}_{config['test_config']}"
-        elif config["agent_type"] == "azmcts":
-            run_name = f"Algorithm_({config['agent_type']})_EvalPol_({config['tree_evaluation_policy']})_SelPol_({config['selection_policy']})_c_({config['puct_c']})_ValueEst_({config['value_estimate']})_{config['map_size']}x{config['map_size']}_{config['train_config']}_{config['test_config']}"
-        elif config["agent_type"] == "pddp":
-            run_name = f"Algorithm_({config['agent_type']})_EvalPol_({config['tree_evaluation_policy']})_SelPol_({config['selection_policy']})_c_({config['puct_c']})_Beta_({config['eval_param']})_Predictor_({config['predictor']})_eps_({config['threshold']})_subthresh_({config['subopt_threshold']})_ValueEst_({config['value_estimate']})_ttemp_({config['tree_temperature']})_Value_Penalty_{config['value_penalty']}_treuse_{config['reuse_tree']}_{config['map_size']}x{config['map_size']}_{config['train_config']}_{config['test_config']}"
+        if config["agent_type"] == "azmcts":
+            run_name = f"Algorithm_({config['agent_type']})_EvalPol_({config['tree_evaluation_policy']})_SelPol_({config['selection_policy']})_c_({config['puct_c']})_{config['map_size']}x{config['map_size']}_{config['train_config']}_{config['test_config']}"
         elif config["agent_type"] == "azmcts_no_loops":
-            run_name = f"Algorithm_({config['agent_type']})_EvalPol_({config['tree_evaluation_policy']})_SelPol_({config['selection_policy']})_c_({config['puct_c']})_Beta_({config['eval_param']})_treuse_{config['reuse_tree']}_bloops_{config['block_loops']}_ttemp_({config['tree_temperature']})_ValueEst_({config['value_estimate']})_{config['map_size']}x{config['map_size']}_{config['train_config']}_{config['test_config']}"
+            run_name = f"Algorithm_({config['agent_type']})_EvalPol_({config['tree_evaluation_policy']})_SelPol_({config['selection_policy']})_c_({config['puct_c']})_treuse_{config['reuse_tree']}_bloops_{config['block_loops']}_ttemp_({config['tree_temperature']})_{config['map_size']}x{config['map_size']}_{config['train_config']}_{config['test_config']}"
         else:
-            run_name = f"Algorithm_({config['agent_type']})_EvalPol_({config['tree_evaluation_policy']})_SelPol_({config['selection_policy']})_c_({config['puct_c']})_Predictor_({config['predictor']})_eps_({config['threshold']})_ValueEst_({config['value_estimate']})_{config['map_size']}x{config['map_size']}_{config['train_config']}_{config['test_config']}"
+            raise ValueError(f"Unknown agent type: {config['agent_type']}") 
         
     if config["ENV"] == "GRIDWORLD" and config["test_env"]["deviation_type"] == "clockwise":
         run_name = "CW_" + run_name 
@@ -414,6 +309,7 @@ def eval_budget_sweep(
                     seeds=seeds,
                     temperature=config_copy["eval_temp"],
                     workers=config_copy["workers"],
+                    verbose=config_copy["verbose"],
                 )
 
                 episode_returns, discounted_returns, time_steps, _ = calc_metrics(
@@ -444,9 +340,6 @@ def eval_budget_sweep(
 
     df_grouped.columns = [f"{col[0]} {col[1]}" for col in df_grouped.columns]  # Flatten MultiIndex
     df_grouped.reset_index(inplace=True)  # Restore "Budget" as a column
-
-    # Print to debug column names
-    print("Column names after grouping:", df_grouped.columns)
 
     # Compute standard error across training seeds
     num_train_seeds = len(df["Training Seed"].unique())
@@ -512,18 +405,15 @@ if __name__ == "__main__":
     parser.add_argument("--tree_temperature", type=float, default= None, help="Temperature in tree evaluation softmax")
 
     # Planning algorithm
-    parser.add_argument("--agent_type", type=str, default= "azmcts_no_loops", help="Agent type")
+    parser.add_argument("--agent_type", type=str, default= "azmcts", help="Agent type")
 
     # Only for standard MCTS (no NN)
     parser.add_argument("--rollout_budget", type=int, default= 10, help="Rollout budget")
 
-    # Only for MVC evaluation
-    parser.add_argument("--beta", type=float, default= 10, help="Beta parameter for mvc policy")
-
     # Test environment parameters
     parser.add_argument("--test_env_is_slippery", type=bool, default= False, help="Slippery environment")
     parser.add_argument("--test_env_hole_reward", type=int, default=0, help="Hole reward")
-    parser.add_argument("--test_env_terminate_on_hole", type=bool, default= False, help="Terminate on hole")
+    parser.add_argument("--test_env_terminate_on_obst", type=bool, default= False, help="Terminate on hole")
     parser.add_argument("--deviation_type", type=str, default= "bump", help="Deviation type")
 
     # Model file
@@ -532,9 +422,10 @@ if __name__ == "__main__":
     parser.add_argument( "--train_seeds", type=int, default=10, help="The number of random seeds to use for training.")
     parser.add_argument("--eval_seeds", type=int, default=1, help="The number of random seeds to use for evaluation.")
 
-    # Rendering
+    # Rendering and logging
     parser.add_argument("--render", type=bool, default=True, help="Render the environment")
     parser.add_argument("--visualize_trees", type=bool, default=False, help="Visualize trees")
+    parser.add_argument("--verbose", type=bool, default=True, help="Verbose output")
 
     parser.add_argument("--run_full_eval", type=bool, default= True, help="Run type")
 
@@ -588,7 +479,7 @@ if __name__ == "__main__":
         "desc": grid_env_descriptions[args.test_env_desc],
         "is_slippery": args.test_env_is_slippery,
         "hole_reward": args.test_env_hole_reward,
-        "terminate_on_hole": args.test_env_terminate_on_hole,
+        "terminate_on_obst": args.test_env_terminate_on_obst,
         "deviation_type": args.deviation_type,
     }  
 
@@ -613,13 +504,13 @@ if __name__ == "__main__":
         "observation_embedding": observation_embedding,
         "model_file": args.model_file,
         "render": args.render,
+        "verbose": args.verbose,
         "hpc": args.hpc,
         "value_estimate": args.value_estimate,
         "visualize_trees": args.visualize_trees,
         "map_size": args.map_size,
         "train_config": args.train_config,
         "test_config": args.test_config,
-        "eval_param": args.beta,
         "tree_temperature": args.tree_temperature,
         "save": args.save,
         "reuse_tree": args.reuse_tree,
@@ -636,6 +527,6 @@ if __name__ == "__main__":
     # Execute the evaluation
 
     if args.run_full_eval:
-        eval_budget_sweep(config=run_config, budgets= [8,16,32],  num_train_seeds=args.train_seeds, num_eval_seeds=args.eval_seeds, final = args.final, save=args.save)
+        eval_budget_sweep(config=run_config, budgets= [64],  num_train_seeds=args.train_seeds, num_eval_seeds=args.eval_seeds, final = args.final, save=args.save)
     else: 
         eval_from_config(config=run_config, eval_seed=single_eval_seed)

@@ -1,6 +1,7 @@
 import multiprocessing
 import os
 import subprocess
+from tabnanny import verbose
 
 from tensordict import TensorDict
 import torch as th
@@ -9,10 +10,7 @@ import numpy as np
 from core.mcts import MCTS, RandomRolloutMCTS, NoLoopsMCTS
 from az.azmcts import AlphaZeroMCTS
 from environments.observation_embeddings import ObservationEmbedding
-from environments.gridworld.grid_world import GridWorldEnv
 from policies.policies import PolicyDistribution, custom_softmax
-from policies.tree_policies import MinimalVarianceConstraintPolicyPrior
-from policies.utility_functions import policy_value, policy_value_variance
 from core.node import Node
 from core.utils import copy_environment, observations_equal, actions_dict, print_obs
 import matplotlib.pyplot as plt
@@ -26,9 +24,8 @@ from policies.utility_functions import get_children_visits
 
 
 def collect_trajectories(tasks, workers=1):
-    subprocess.run(["pwd"])
+    subprocess.run(["pwd"]) # Just running pwd somehow fixes a multiprocessing issue on HPCs.
     if workers > 1:
-        print(os.getcwd())
         with multiprocessing.Pool(workers) as pool:
             # Run the tasks using map
             results = pool.map(run_episode_process, tasks)
@@ -70,10 +67,9 @@ def run_episode_azmcts(
     max_steps=1000,
     seed=None,
     temperature=None,
-    original_env: gym.Env | None = None,
-    unroll_steps=5,
     render=False,
     return_trees=False,
+    verbose=False,
 ):
     assert isinstance(env.action_space, gym.spaces.Discrete)
     n = int(env.action_space.n)
@@ -84,7 +80,8 @@ def run_episode_azmcts(
 
     observation, _ = env.reset(seed=seed)
 
-    #print(f"Env: obs = {print_obs(env, observation)}")
+    if verbose:
+        print(f"Env: obs = {print_obs(env, observation)}")
 
     if render:
         vis_env = copy_environment(env)  # Use the utility function
@@ -118,8 +115,7 @@ def run_episode_azmcts(
     step = 0
 
     while step < max_steps:
-        root_value = tree.value_evaluation
-        #tree.reset_var_val()
+
         policy_dist = tree_evaluation_policy.softmaxed_distribution(tree)
 
         #print(f"Step {step}: {policy_dist.probs}")
@@ -136,7 +132,8 @@ def run_episode_azmcts(
 
         new_obs, reward, terminated, truncated, _ = env.step(action)
 
-        #print(f"Env: step = {step}, obs = {print_obs(env, new_obs)}, reward = {reward}, terminated = {terminated}, truncated = {truncated}")
+        if verbose:
+            print(f"Env: step = {step}, obs = {print_obs(env, new_obs)}, reward = {reward}, terminated = {terminated}, truncated = {truncated}")
 
         if render:
             vis_env.step(action)
@@ -151,7 +148,6 @@ def run_episode_azmcts(
         trajectory["actions"][step] = action
         trajectory["mask"][step] = True
         trajectory["terminals"][step] = next_terminal
-        trajectory["root_values"][step] = th.tensor(root_value, dtype=th.float32)
 
         if next_terminal or truncated:
             break
@@ -182,10 +178,9 @@ def run_episode_no_loop(
     max_steps=1000,
     seed=None,
     temperature=None,
-    original_env: gym.Env | None = None,
-    unroll_steps=5,
     render=False,
     return_trees=False,
+    verbose=False,
 ):
     assert isinstance(env.action_space, gym.spaces.Discrete)
     n = int(env.action_space.n)
@@ -196,7 +191,8 @@ def run_episode_no_loop(
 
     observation, _ = env.reset(seed=seed)
 
-    print(f"Env: obs = {print_obs(env, observation)}")
+    if verbose:
+        print(f"Env: obs = {print_obs(env, observation)}")
 
     if render:
         vis_env = copy_environment(env)  # Use the utility function
@@ -230,11 +226,8 @@ def run_episode_no_loop(
     step = 0
 
     while step < max_steps:
-        root_value = tree.value_evaluation
-        #tree.reset_var_val()
-        policy_dist = tree_evaluation_policy.softmaxed_distribution(tree, action_mask=tree.mask)
 
-        #print(f"Step {step}: {policy_dist.probs}")
+        policy_dist = tree_evaluation_policy.softmaxed_distribution(tree, action_mask=tree.mask)
 
         if return_trees:
             tree_copy = copy.deepcopy(tree)
@@ -244,11 +237,10 @@ def run_episode_no_loop(
 
         action = distribution.sample().item()
 
-        #print(f"Env: action = {actions_dict(env)[action]}")
-
         new_obs, reward, terminated, truncated, _ = env.step(action)
 
-        print(f"Env: step = {step}, obs = {print_obs(env, new_obs)}, reward = {reward}, terminated = {terminated}, truncated = {truncated}")
+        if verbose:
+            print(f"Env: step = {step}, obs = {print_obs(env, new_obs)}, reward = {reward}, terminated = {terminated}, truncated = {truncated}")
 
         if render:
             vis_env.step(action)
@@ -263,7 +255,6 @@ def run_episode_no_loop(
         trajectory["actions"][step] = action
         trajectory["mask"][step] = True
         trajectory["terminals"][step] = next_terminal
-        trajectory["root_values"][step] = th.tensor(root_value, dtype=th.float32)
 
         if next_terminal or truncated:
             break

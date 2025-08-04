@@ -44,72 +44,27 @@ def plot_comparison_subplots(filepaths_dict, labels=None, map_size=16, max_episo
 
         for df, label in zip(dataframes, labels):
 
-            # if "c=0.0" in label:
-            #     linestyle = "-"
-            #     color = colors[0]
-            # elif "c=0.1" in label:
-            #     linestyle = "-"
-            #     color = colors[1]
-            # elif "c=0.5" in label:
-            #     linestyle = "-"
-            #     color = colors[2]
-            # elif "c=1.0" in label:
-            #     linestyle = "-"
-            #     color = colors[3]
-            # elif "c=2.0" in label:
-            #     linestyle = "-"
-            #     color = colors[4]
-            # elif "c=100.0" in label:
-            #     linestyle = "-"
-            #     color = colors[5]
-            # else:
-            #     linestyle = "-"
-            #     color = None
-
-            # if "c=0.0" in label and "+UCT" in label:
-            #     linestyle = "-"
-            #     color = colors[0]
-            # elif "c=0.1" in label and "+UCT" in label:
-            #     linestyle = "-"
-            #     color = colors[1]
-            # elif "c=0.0" in label and "PUCT" in label:
-            #     linestyle = "-"
-            #     color = colors[2]
-            # elif "c=0.1" in label and "PUCT" in label:
-            #     linestyle = "-"
-            #     color = colors[3]
-
-            # if "Beta=1.0" in label and "+UCT" in label:
-            #     linestyle = "-"
-            #     color = colors[0]
-            # elif "Beta=10.0" in label and "+UCT" in label:
-            #     linestyle = "-"
-            #     color = colors[1]
-            # elif "Beta=1.0" in label and "PUCT" in label:
-            #     linestyle = "-"
-            #     color = colors[2]
-            # elif "Beta=10.0" in label and "PUCT" in label:
-            #     color = colors[3]
-
-            if "β=1.0" in label and "c=0.0" in label:
+            if "c=0.0" in label:
                 linestyle = "-"
                 color = colors[0]
-            elif "β=10.0" in label and "c=0.0" in label:
+            elif "c=0.1" in label:
+                linestyle = "-"
+                color = colors[1]
+            elif "c=0.5" in label:
                 linestyle = "-"
                 color = colors[2]
-            elif "β=100.0" in label and "c=0.0" in label:
+            elif "c=1.0" in label:
+                linestyle = "-"
+                color = colors[3]
+            elif "c=2.0" in label:
+                linestyle = "-"
+                color = colors[4]
+            elif "c=100.0" in label:
                 linestyle = "-"
                 color = colors[5]
-            elif "β=1.0" in label and "c=0.1" in label:
-                linestyle = "--"
-                color = colors[0]
-            elif "β=10.0" in label and "c=0.1" in label:
-                linestyle = "--"
-                color = colors[2]
-            elif "β=100.0" in label and "c=0.1" in label:
-                linestyle = "--"
-                color = colors[5]
-
+            else:
+                linestyle = "-"
+                color = None
 
             # Exclude the last budget value and corresponding statistics
             budgets = df["Budget"][:-1]
@@ -186,24 +141,6 @@ def plot_comparison_subplots_2x3(filepaths_dict, labels=None, map_size=16, max_e
                 else:
                     linestyle = "-"
                     color = None
-                # if "β=1.0" in label and "c=0.0" in label:
-                #     linestyle = "-"
-                #     color = colors[0]
-                # elif "β=10.0" in label and "c=0.0" in label:
-                #     linestyle = "-"
-                #     color = colors[2]
-                # elif "β=100.0" in label and "c=0.0" in label:
-                #     linestyle = "-"
-                #     color = colors[5]
-                # elif "β=1.0" in label and "c=0.1" in label:
-                #     linestyle = "--"
-                #     color = colors[0]
-                # elif "β=10.0" in label and "c=0.1" in label:
-                #     linestyle = "--"
-                #     color = colors[2]
-                # elif "β=100.0" in label and "c=0.1" in label:
-                #     linestyle = "--"
-                #     color = colors[5]
 
                 # Exclude the last budget value and corresponding statistics
                 budgets = df["Budget"][:-1]
@@ -284,24 +221,6 @@ def plot_comparison_subplots_2x3_parking(filepaths_dict, labels=None, max_episod
                 # else:
                 #     linestyle = "-"
                 #     color = None
-                elif "β=1.0" in label and "c=0.0" in label:
-                    linestyle = "-"
-                    color = colors[0]
-                elif "β=10.0" in label and "c=0.0" in label:
-                    linestyle = "-"
-                    color = colors[2]
-                elif "β=100.0" in label and "c=0.0" in label:
-                    linestyle = "-"
-                    color = colors[5]
-                elif "β=1.0" in label and "c=0.1" in label:
-                    linestyle = "--"
-                    color = colors[0]
-                elif "β=10.0" in label and "c=0.1" in label:
-                    linestyle = "--"
-                    color = colors[2]
-                elif "β=100.0" in label and "c=0.1" in label:
-                    linestyle = "--"
-                    color = colors[5]
 
                 # Exclude the last budget value and corresponding statistics
                 budgets = df["Budget"][:-1]
@@ -361,27 +280,6 @@ def plot_comparison_subplots_2x2_parking(filepaths_dict, labels=None, max_episod
                 elif "EDP" in label:
                     color = "black"
                     linestyle = "-"
-                # elif "β=1.0" in label and "c=0.0" in label:
-                #     linestyle = "-"
-                #     color = colors[0]
-                # elif "β=10.0" in label and "c=0.0" in label:
-                #     linestyle = "-"
-                #     color = colors[2]
-                # elif "β=100.0" in label and "c=0.0" in label:
-                #     linestyle = "-"
-                #     color = colors[5]
-                # elif "β=1.0" in label and "c=0.1" in label:
-                #     linestyle = "--"
-                #     color = colors[0]
-                # elif "β=10.0" in label and "c=0.1" in label:
-                #     linestyle = "--"
-                #     color = colors[2]
-                # elif "β=100.0" in label and "c=0.1" in label:
-                #     linestyle = "--"
-                #     color = colors[5]
-                # else:
-                #     linestyle = "-"
-                #     color = None
 
                 elif "c=0.0" in label:
                     linestyle = "-"

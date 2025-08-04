@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
 import torch as th
-import numpy as np
 from core.node import Node
-from policies.value_transforms import IdentityValueTransform, ValueTransform
 
 
 def custom_softmax(
@@ -31,9 +29,6 @@ def custom_softmax(
             if action_mask.sum() > 0:
                 probs = th.ones_like(probs) * action_mask
             else:
-                # print("Warning: No valid actions available")
-                # print(f"Action mask: {action_mask}")
-                # print(f"Raw probs: {raw_probs}")
                 # Ignore the mask
                 probs = raw_probs
 
@@ -68,18 +63,15 @@ class PolicyDistribution(Policy):
     """
 
     temperature: float
-    value_transform: ValueTransform
 
     def __init__(
         self,
         temperature: float = None,
-        value_transform: ValueTransform = IdentityValueTransform,
     ) -> None:
         
         super().__init__()
         
         self.temperature = temperature
-        self.value_transform = value_transform
 
     def sample(self, node: Node, mask=None) -> int:
         """
@@ -142,11 +134,6 @@ class PolicyDistribution(Policy):
         # Add the self probability. 
         if include_self:
             softmaxed_probs = self.add_self_to_probs(node, softmaxed_probs)
-
-            # # Modify the probabilities so that only the max is 1 and the rest are 0
-            # if self.temperature == 0.0:
-            #     max_prob = th.max(softmaxed_probs, dim=-1, keepdim=True).values
-            #     softmaxed_probs = (softmaxed_probs == max_prob).float()
 
         return th.distributions.Categorical(probs=softmaxed_probs)
 

@@ -1,8 +1,5 @@
 from collections import Counter
 import torch as th
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
 
 @th.no_grad()
 def n_step_value_targets(
@@ -29,8 +26,6 @@ def n_step_value_targets(
     """
     assert n > 0
 
-    # if n == 1:
-    #     return one_step_value_targets(rewards, values, terminals, discount_factor)
     batch_size, n_steps = rewards.shape
     # the target should be sum_{i=0}^{n-1}(discount_factor ** i * reward_i) + discount_factor ** n * value_n
     # if we encounter a terminal state, the target is just the reward sum up to that point
@@ -77,7 +72,7 @@ def n_step_value_targets_no_reduce(
         targets (th.Tensor): targets for the value function dimension (batch_size, n_steps-1)
 
     """
-    # TODO: could also return n_steps - n dimension (only propoper n_steps)
+
     assert n > 0
 
     if n == 1:
@@ -113,8 +108,6 @@ def one_step_value_targets(
     targets = rewards[:, :-1] + discount_factor * values[:, 1:] * ~terminals[:, :-1]
     return targets
 
-
-
 def calculate_visit_counts(observations, full_mask):
     """
     Calculate the visit counts for each observation in the trajectories, with output shape (batch_size, max_steps).
@@ -149,40 +142,3 @@ def calculate_visit_counts(observations, full_mask):
 
     return visit_counts, visit_counts_mapping
 
-@th.no_grad()
-def plot_average_targets(observations, targets, masks):
-    """
-    Plots the average targets for each unique observation.
-
-    Args:
-        observations (ndarray): The observations array of shape (N, 2).
-        targets (ndarray): The targets array of shape (N,).
-        masks (ndarray): The masks array of shape (N,).
-
-    Returns:
-        ax (AxesSubplot): The heatmap plot of the average targets.
-    """
-    # Flatten observations and targets
-    flat_observations = observations.reshape(-1, 2).int()  # Shape: [7200, 2]
-    flat_targets = targets.flatten()  # Shape: [7200]
-    flat_mask = masks.flatten()  # Shape: [7200]
-
-    # Initialize a tensor to store the sum of targets for each unique observation
-    size = (6,12)
-    sum_targets = th.zeros(size)
-    # Count the occurrences of each unique observation
-    counts = th.zeros(size)
-
-    # Sum the targets for each unique observation and count occurrences
-    for (row, col), target, mask in zip(flat_observations, flat_targets, flat_mask):
-        if mask:
-            if target > -9:
-                print(row.item(),col.item(), target.item(), mask.item())
-
-            sum_targets[row,col] += target
-            counts[row,col] += 1
-
-    # Compute the average target for each unique observation
-    average_targets = sum_targets / counts
-    ax = sns.heatmap(average_targets, linewidth=0.5, annot=True)
-    return ax

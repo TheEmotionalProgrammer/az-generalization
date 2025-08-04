@@ -1,5 +1,4 @@
-from collections import deque
-from typing import Dict, List, Tuple
+from typing import Tuple
 import gymnasium as gym
 from gymnasium import Env
 import numpy as np
@@ -52,25 +51,13 @@ class MCTS:
             reward=reward,
             action_space=env.action_space,
             observation=obs,
-            #ncols=self.ncols
         )
 
-        root_node.value_evaluation = self.value_function(root_node) # Estimate the value of the root node
+        self.backup(root_node, 0) # Initialize node visits and height
 
-        self.backup(root_node, root_node.value_evaluation) # Update node statistics
+        while root_node.visits < iterations: # Fixed number of iterations
 
-        return self.build_tree(root_node, iterations)
-
-    def build_tree(self, from_node: Node, iterations: int) -> Node:
-
-        """
-        Builds the tree starting from the input node.
-        The tree is built iteratively, and the value of the nodes is updated as the tree is built.
-        """
-
-        while from_node.visits < iterations: # Fixed number of iterations
-
-            selected_node_for_expansion, selected_action = self.traverse(from_node) # Traverse the existing tree until a leaf node is reached
+            selected_node_for_expansion, selected_action = self.traverse(root_node) # Traverse the existing tree until a leaf node is reached
 
             if selected_node_for_expansion.is_terminal(): # If the node is terminal, set its value to 0 and backup
                 
@@ -85,20 +72,7 @@ class MCTS:
                 eval_node.value_evaluation = value # Set the value of the node
                 self.backup(eval_node, value) # Backup the value of the node
 
-        return from_node # Return the root node, which will now have updated statistics after the tree has been built
-
-    def value_function(
-        self,
-        node: Node,
-    ) -> float:
-        
-        """
-        Depending on the specific implementation, the value of a node can be estimated in different ways.
-        For this reason we leave the implementation of the value function to subclasses.
-        In random rollout MCTS, the value is the sum of the future reward when acting with uniformly random policy.
-        """
-        
-        return .0 
+        return root_node # Return the root node, which will now have updated statistics after the tree has been built
 
     def traverse(
         self, from_node: Node
@@ -142,36 +116,28 @@ class MCTS:
         # Copy the environment
         env = copy_environment(node.env)
 
-        assert env is not None
-
         # Step into the environment
-
         observation, reward, terminated, truncated, _ = env.step(action)
         terminal = terminated
 
-        assert not truncated
         if terminated:
             observation = None
 
-        node_class = type(node)
-
         # Create the node for the new state
-        new_child = node_class(
+        new_child = Node(
             env=env,
             parent=node,
             reward=reward,
             action_space=node.action_space,
             terminal=terminal,
             observation=observation,
-            action=action,
-            #ncols=self.ncols
         )
 
         node.children[action] = new_child # Add the new node to the children of the parent node
 
         return new_child
 
-    def backup(self, start_node: Node, value: float, new_visits: int = 1) -> None:
+    def backup(self, start_node: Node, value: float) -> None:
         
         """
         Backups the value of the start node to its parent, grandparent, etc., all the way to the root node.
@@ -189,7 +155,7 @@ class MCTS:
             cumulative_reward *= self.discount_factor
             cumulative_reward += node.reward
             node.subtree_sum += cumulative_reward
-            node.visits += new_visits
+            node.visits += 1
 
             # Update the height of the node
             if node.children:
@@ -199,10 +165,20 @@ class MCTS:
 
             # Reset the prior policy and value evaluation (mark as needing update)
 
-            node.policy_value = None
-            node.variance = None
-
             node = node.parent
+
+    def value_function(
+        self,
+        node: Node,
+    ) -> float:
+        
+        """
+        Depending on the specific implementation, the value of a node can be estimated in different ways.
+        For this reason we leave the implementation of the value function to subclasses.
+        In random rollout MCTS, the value is the sum of the future reward when acting with uniformly random policy.
+        """
+        
+        return .0 
     
 class NoLoopsMCTS(MCTS):
 
@@ -213,6 +189,41 @@ class NoLoopsMCTS(MCTS):
         self.reuse_tree = reuse_tree
         self.block_loops = block_loops
         self.loops_threshold = loops_threshold
+
+    def search(self, env: Env, iterations: int, obs, reward: float) -> Node:
+
+        root_node = self.get_root(env, obs, reward)
+
+        counter = root_node.visits - 1
+        
+        while root_node.visits - counter < iterations:
+            
+            selected_node_for_expansion, selected_action, visited = self.traverse(root_node) # Traverse the existing tree until a leaf node is reached
+
+            if selected_node_for_expansion.is_terminal(): # If the node is terminal, set its value to 0 and backup
+                
+                selected_node_for_expansion.value_evaluation = 0.0
+                self.backup(selected_node_for_expansion, 0)
+
+            else:
+                
+                eval_node = self.expand(selected_node_for_expansion, selected_action) # Expand the node
+                
+                value = self.value_function(eval_node) # Estimate the value of the node
+                        
+                eval_node.value_evaluation = value # Set the value of the node
+
+                tuple_obs = tuple(eval_node.observation.flatten()) if isinstance(eval_node.observation, np.ndarray) else eval_node.observation
+
+                if self.block_loops and self.is_close(tuple_obs, visited, self.loops_threshold):
+                    #print(f"Loop detected at {eval_node.observation}, blocking the action {selected_action}")
+                    eval_node.parent.mask[selected_action] = 0
+                    eval_node.value_evaluation = 0.0
+                    self.backup(eval_node, 0)
+                else:
+                    self.backup(eval_node, value) # If the parent has been masked, this will only update the visits
+
+        return root_node # Return the root node,
 
     def traverse(
         self, from_node: Node
@@ -253,67 +264,29 @@ class NoLoopsMCTS(MCTS):
 
         return node, action, visited
     
-    def expand(
-        self, node: Node, action: int
-    ) -> Node:
-        
+    def get_root(self, env, obs, reward):
         """
-        Expands the node and returns the expanded node.
+        Initializes or reuses the root node based on the current state of the environment.
         """
-
-        # Copy the environment
-        env = copy_environment(node.env)
-
-        assert env is not None
-
-        # Step into the environment
-
-        observation, reward, terminated, truncated, _ = env.step(action)
-        terminal = terminated
-
-        assert not truncated
-        if terminated:
-            observation = None
-
-        node_class = type(node)
-
-        # Create the node for the new state
-        new_child = node_class(
-            env=env,
-            parent=node,
-            reward=reward,
-            action_space=node.action_space,
-            terminal=terminal,
-            observation=observation,
-            action=action,
-        )
-
-        node.children[action] = new_child # Add the new node to the children of the parent node
-
-        return new_child
-    
-    def search(self, env: Env, iterations: int, obs, reward: float, lastaction: int = None) -> Node:
-
         if self.previous_root is None or not self.reuse_tree:
-            
+
             root_node = Node(
-                env = env,
-                parent = None,
-                reward = reward,
-                action_space = env.action_space,
-                observation = obs,
-                terminal = False,
+                env=env,
+                parent=None,
+                reward=reward,
+                action_space=env.action_space,
+                observation=obs,
+                terminal=False,
             )
 
             self.previous_root = root_node
 
-            root_node.value_evaluation = self.value_function(root_node)
-            self.backup(root_node, root_node.value_evaluation)
+            self.backup(root_node, 0)
 
         else:
 
             root_node = self.previous_root
-            
+
             found = False
             max_depth = 0
             for _, child in root_node.children.items():
@@ -322,88 +295,45 @@ class NoLoopsMCTS(MCTS):
                     max_depth = child.height
                     root_node = child
                     self.previous_root = root_node
-            
+
             root_node.parent = None
 
             if not found:
                 root_node = Node(
-                    env = env,
-                    parent = None,
-                    reward = reward,
-                    action_space = env.action_space,
-                    observation = obs,
-                    terminal = False,
+                    env=env,
+                    parent=None,
+                    reward=reward,
+                    action_space=env.action_space,
+                    observation=obs,
+                    terminal=False,
 
                 )
 
                 self.previous_root = root_node
 
-                root_node.value_evaluation = self.value_function(root_node)
-                self.backup(root_node, root_node.value_evaluation)
-                        
-        counter = root_node.visits 
-        
-        while root_node.visits - counter < iterations:
-            
-            selected_node_for_expansion, selected_action, visited = self.traverse(root_node) # Traverse the existing tree until a leaf node is reached
+                self.backup(root_node, 0)
 
-            if selected_node_for_expansion.is_terminal(): # If the node is terminal, set its value to 0 and backup
-                
-                selected_node_for_expansion.value_evaluation = 0.0
-                self.backup(selected_node_for_expansion, 0)
-
-            else:
-                
-                eval_node = self.expand(selected_node_for_expansion, selected_action) # Expand the node
-                
-                value = self.value_function(eval_node) # Estimate the value of the node
-                        
-                eval_node.value_evaluation = value # Set the value of the node
-
-                tuple_obs = tuple(eval_node.observation.flatten()) if isinstance(eval_node.observation, np.ndarray) else eval_node.observation
-
-                if self.block_loops and is_close_in_set(tuple_obs, visited, self.loops_threshold):
-                    #print(f"Loop detected at {eval_node.observation}, blocking the action {selected_action}")
-                    eval_node.parent.mask[selected_action] = 0
-                    eval_node.value_evaluation = 0.0
-                    self.backup(eval_node, 0)
-                else:
-                    self.backup(eval_node, value) # If the parent has been masked, this will only update the visits
-
-        return root_node # Return the root node,
+        return root_node
     
-    def backup(self, start_node: Node, value: float, new_visits: int = 1) -> None:
-        
+    def is_close(self, obs, visited, alpha=0.01):
         """
-        Backups the value of the start node to its parent, grandparent, etc., all the way to the root node.
-        Updates the statistic of the nodes in the path:
-        - subtree_sum: the sum of the value of the node and its children
-        - visits: the number of times the node has been visited
-        - height: the maximum number of steps from the node to a leaf
+        Checks if obs is within L2 distance alpha of any element in visited.
+        obs and elements of visited can be tuples or numpy arrays.
+        Skips comparisons if obs or v contains None.
         """
-
-        node = start_node
-        cumulative_reward = value
-
-        while node is not None: # The parent is None if node is the root
-            
-            cumulative_reward *= self.discount_factor
-            cumulative_reward += node.reward
-            node.subtree_sum += cumulative_reward
-            node.visits += new_visits
-
-            # Update the height of the node
-            if node.children:
-                node.height = max(child.height for child in node.children.values()) + 1
-            else:
-                node.height = 0  # Leaf nodes have a height of 0
-
-            # Reset the prior policy and value evaluation (mark as needing update)
-            node.policy_value = None
-            node.variance = None
-
-            node = node.parent
-                
+        if obs is None or (isinstance(obs, (tuple, list, np.ndarray)) and any(x is None for x in obs)):
+            return False
+        obs_arr = np.array(obs)
+        for v in visited:
+            if v is None or (isinstance(v, (tuple, list, np.ndarray)) and any(x is None for x in v)):
+                continue
+            v_arr = np.array(v)
+            if obs_arr.shape != v_arr.shape:
+                continue
+            if np.linalg.norm(obs_arr - v_arr) <= alpha:
+                return True
+        return False
+                            
 class RandomRolloutMCTS(MCTS):
     def __init__(self, rollout_budget=40, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -422,7 +352,6 @@ class RandomRolloutMCTS(MCTS):
         # if the node is terminal, return 0
         if node.is_terminal():
             return 0.0
-            #return 1.0 / (1 - self.discount_factor)
 
         # if the node is not terminal, simulate the enviroment with random actions and return the accumulated reward until termination
         accumulated_reward = 0.0
@@ -430,56 +359,15 @@ class RandomRolloutMCTS(MCTS):
         env = copy_environment(node.env)
         assert env is not None
         for i in range(self.rollout_budget):
-            obs, reward, terminated, truncated, _ = env.step(env.action_space.sample())
-            #print(print_obs(env, obs))
+            _, reward, terminated, truncated, _ = env.step(env.action_space.sample())
             accumulated_reward += reward * (discount** (i+1))
-            assert not truncated
             if terminated or truncated:
-                #accumulated_reward += sum(discount**(j+1) for j in range(i+1, self.rollout_budget-1))
                 break
 
         return accumulated_reward
+    
+    
 
-def compute_distances(grid_world: List[str]) -> Dict[int, int]:
-    """
-    Computes the distance from each cell to the goal cell, taking holes into account.
-    """
-    rows = len(grid_world)
-    cols = len(grid_world[0])
-    goal = (rows - 1, cols - 1)
-    distances = {goal: 0}
-    visited = set(goal)
-    queue = deque([goal])
 
-    while queue:
-        row, col = queue.popleft()
-        for dr, dc in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
-            new_row, new_col = row + dr, col + dc
-            if 0 <= new_row < rows and 0 <= new_col < cols and (new_row, new_col) not in visited:
-                if grid_world[new_row][new_col] == 'H':
-                    continue
-                visited.add((new_row, new_col))
-                distances[new_row, new_col] = distances[row, col] + 1
-                queue.append((new_row, new_col))
-    return distances
-
-def is_close_in_set(obs, visited, alpha=0.01):
-    """
-    Checks if obs is within L2 distance alpha of any element in visited.
-    obs and elements of visited can be tuples or numpy arrays.
-    Skips comparisons if obs or v contains None.
-    """
-    if obs is None or (isinstance(obs, (tuple, list, np.ndarray)) and any(x is None for x in obs)):
-        return False
-    obs_arr = np.array(obs)
-    for v in visited:
-        if v is None or (isinstance(v, (tuple, list, np.ndarray)) and any(x is None for x in v)):
-            continue
-        v_arr = np.array(v)
-        if obs_arr.shape != v_arr.shape:
-            continue
-        if np.linalg.norm(obs_arr - v_arr) <= alpha:
-            return True
-    return False
 
 

@@ -2,6 +2,7 @@ import stat
 from typing import Tuple
 import torch as th
 import gymnasium as gym
+import warnings
 
 from environments.observation_embeddings import DefaultEmbedding, ObservationEmbedding
 
@@ -183,8 +184,11 @@ class AlphaZeroModel(th.nn.Module):
         Returns:
             model: The newly created model with the loaded state dict.
         """
+        
         # Load the saved model information
-        model_info = th.load(filename)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
+            model_info = th.load(filename)
 
         # Get hidden_dim, use a default if not found
         hidden_dim = model_info.get("hidden_dim", default_hidden_dim)

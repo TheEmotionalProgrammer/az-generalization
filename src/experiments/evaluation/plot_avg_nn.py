@@ -392,7 +392,7 @@ if __name__ == "__main__":
     challenge["env_params"]["desc"] = desc
     challenge["env_params"]["is_slippery"] = False
     challenge["env_params"]["hole_reward"] = 0
-    challenge["env_params"]["terminate_on_hole"] = False
+    challenge["env_params"]["terminate_on_obst"] = False
     challenge["env_params"]["deviation_type"] = "bump"
 
     env = gym.make(**challenge["env_params"])

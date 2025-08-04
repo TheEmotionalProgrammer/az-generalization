@@ -9,7 +9,6 @@ if "--offline" in sys.argv:
     os.environ["WANDB_MODE"] = "offline"
 
 sys.path.append("src/")
-import datetime
 import multiprocessing
 import numpy as np
 import gymnasium as gym
@@ -29,11 +28,8 @@ import wandb
 
 import experiments.parameters as parameters
 from environments.observation_embeddings import ObservationEmbedding, embedding_dict
-from environments.minigrid.mini_grid import ObstaclesGridEnv
-from environments.minigrid.utilities.wrappers import SparseActionsWrapper, gym_wrapper
 from az.alphazero import AlphaZeroController
 from az.azmcts import AlphaZeroMCTS
-from azdetection.pddp import PDDP
 from az.model import (
     AlphaZeroModel,
     activation_function_dict,
@@ -41,8 +37,7 @@ from az.model import (
     models_dict,
 )
 from policies.tree_policies import tree_eval_dict
-from policies.selection_distributions import selection_dict_fn
-from policies.value_transforms import value_transform_dict
+from policies.selection_policies import selection_dict_fn
 
 from environments.register import register
 
@@ -111,8 +106,6 @@ def train_from_config(
     register()
 
     env = gym.make(**hparams["env_params"])
-    if isinstance(env, ObstaclesGridEnv):
-        env = gym_wrapper(env)
 
     print(env.observation_space)
 
@@ -120,25 +113,12 @@ def train_from_config(
     if "tree_temperature" not in hparams:
         hparams["tree_temperature"] = None
 
-    if "tree_value_transform" not in hparams or hparams["tree_value_transform"] is None:
-        hparams["tree_value_transform"] = "identity"
-
     tree_evaluation_policy = tree_eval_dict(
-        hparams["eval_param"],
-        discount_factor,
-        hparams["puct_c"],
         hparams["tree_temperature"],
-        value_transform=value_transform_dict[hparams["tree_value_transform"]],
     )[hparams["tree_evaluation_policy"]]
-
-    if "selection_value_transform" not in hparams or hparams["selection_value_transform"] is None:
-        hparams["selection_value_transform"] = "identity"
 
     selection_policy = selection_dict_fn(
         hparams["puct_c"],
-        tree_evaluation_policy,
-        discount_factor,
-        value_transform_dict[hparams["selection_value_transform"]],
     )[hparams["selection_policy"]]
 
     if "root_selection_policy" not in hparams or hparams["root_selection_policy"] is None:
@@ -146,9 +126,6 @@ def train_from_config(
 
     root_selection_policy = selection_dict_fn(
         hparams["puct_c"],
-        tree_evaluation_policy,
-        discount_factor,
-        value_transform_dict[hparams["selection_value_transform"]],
     )[hparams["root_selection_policy"]]
 
     if "observation_embedding" not in hparams:
@@ -186,22 +163,7 @@ def train_from_config(
             dir_alpha=dir_alpha,
             discount_factor=discount_factor,
         )
-    elif hparams["agent_type"] == "pddp":
-        agent = PDDP(
-            model=model,
-            selection_policy=selection_policy,
-            threshold=0.05,
-            discount_factor=discount_factor,
-            dir_epsilon=dir_epsilon,
-            dir_alpha=dir_alpha,
-            root_selection_policy=root_selection_policy,
-            predictor="current_value",
-            value_estimate="nn",
-            var_penalty=1.0,
-            value_penalty=1.0,
-            update_estimator=True,
-        )
-
+    
     optimizer = th.optim.Adam(
         model.parameters(),
         lr=hparams["learning_rate"],
@@ -298,16 +260,10 @@ if __name__ == "__main__":
     parser.add_argument("--train_env_desc", type=str, default="8x8_MAZE_RL", help="Environment description.")
     parser.add_argument("--train_slippery", type=bool, default=False, help="Whether the environment is slippery.")
     parser.add_argument("--train_hole_reward", type=float, default=0.0, help="Reward for falling into a hole.")
-    parser.add_argument("--train_terminate_on_hole", type=bool, default=False, help="Terminate if hole is encountered?")
+    parser.add_argument("--train_terminate_on_obst", type=bool, default=False, help="Terminate if hole is encountered?")
     parser.add_argument("--train_deviation_type", type=str, default="bump", help="The type of deviation to use.")
     parser.add_argument("--num_asteroids", type=int, default=0, help="Number of asteroids")
     parser.add_argument("--train_seed", type=int, default=0, help="The random seed to use for training.")
-
-    # Only ParkingSimple
-    parser.add_argument("--parking_test_config", type=str, default= "NO_OBS", help="ParkingSimple test config")
-    parser.add_argument("--add_walls", type=bool, default= True, help="Add walls to the environment")
-    parser.add_argument("--bump_on_collision", type=bool, default= True, help="Bump on collision") 
-    parser.add_argument("--rand_start", type=bool, default= True, help="Random initial state")
 
     # ---------------------------------------------------------
     # 3. Set default to False so you can pass --offline to enable
@@ -323,7 +279,7 @@ if __name__ == "__main__":
         challenge["env_params"]["desc"] = grid_env_descriptions[args.train_env_desc]
         challenge["env_params"]["is_slippery"] = args.train_slippery
         challenge["env_params"]["hole_reward"] = args.train_hole_reward
-        challenge["env_params"]["terminate_on_hole"] = args.train_terminate_on_hole
+        challenge["env_params"]["terminate_on_obst"] = args.train_terminate_on_obst
         challenge["env_params"]["deviation_type"] = args.train_deviation_type
         name_config = args.train_env_desc
         observation_embedding = "coordinate"

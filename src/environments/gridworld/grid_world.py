@@ -2,7 +2,6 @@ import gymnasium as gym
 from gymnasium.envs.toy_text.frozen_lake import FrozenLakeEnv
 from gymnasium.envs.registration import register
 from gymnasium.envs.toy_text.utils import categorical_sample
-from matplotlib import pyplot as plt
 import sys
 
 sys.path.append("src/")
@@ -19,10 +18,10 @@ coords = lambda observ, ncols: (observ // ncols, observ % ncols) if observ is no
 
 class GridWorldEnv(FrozenLakeEnv):
     def __init__(
-        self, desc=None, map_name="4x4", is_slippery=False,  hole_reward=0, terminate_on_hole=False, render_mode=None, deviation_type = "bump"
+        self, desc=None, map_name="4x4", is_slippery=False,  hole_reward=0, terminate_on_obst=False, render_mode=None, deviation_type = "bump"
     ):
         super().__init__(desc=desc, map_name=map_name, is_slippery=is_slippery, render_mode=render_mode)
-        self.terminate_on_hole = terminate_on_hole  # Decide if falling into a hole ends the episode
+        self.terminate_on_obst = terminate_on_obst  # Decide if falling into a hole ends the episode
         self.deviation_type = deviation_type
         self.hole_reward = hole_reward  # Custom penalty for falling into a hole
 
@@ -34,7 +33,7 @@ class GridWorldEnv(FrozenLakeEnv):
 
         if self.desc[s // self.ncol][s % self.ncol] == b'H':
             r = self.hole_reward  # Apply the custom hole penalty
-            if not self.terminate_on_hole:
+            if not self.terminate_on_obst:
                 if self.deviation_type == "bump":
                     s = self.s  # Stay in the same position
                 elif self.deviation_type in ["clockwise", "counter_clockwise"]:
@@ -74,22 +73,6 @@ class GridWorldEnv(FrozenLakeEnv):
 if __name__ == "__main__":
 
     register(
-    id="GridWorldNoObst4x4-v1",
-    entry_point=__name__ + ":GridWorldEnv",
-    kwargs={
-        "desc": [
-            "SFFF",
-            "FFFF",
-            "FFFF",
-            "FFFG"
-            ],
-        "map_name": None,
-        "is_slippery": False,
-        "terminate_on_hole": False,
-    },
-    )
-
-    register(
         id="GridWorldNoObst8x8-v1",
         entry_point=__name__ + ":GridWorldEnv",
         kwargs={
@@ -105,73 +88,12 @@ if __name__ == "__main__":
                 ],
             "map_name": None,
             "is_slippery": False,
-            "terminate_on_hole": False,
-        },
-    )
-
-    register( # 16x16 empty grid
-        id="GridWorldNoObst16x16-v1",
-        entry_point=__name__ + ":GridWorldEnv",
-        kwargs={
-            "desc": [
-                "SFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFG"
-                ],
-            "map_name": None,
-            "is_slippery": False,
-            "terminate_on_hole": False,
-        },
-    )
-
-    register( # 20x20 empty grid
-        id="GridWorldNoObst20x20-v1",
-        entry_point=__name__ + ":GridWorldEnv",
-        kwargs={
-            "desc": [
-                "SFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFF",
-                "FFFFFFFFFFFFFFFFFFFFFG"
-                ],
-                
-            "map_name": None,
-            "is_slippery": False,
-            "terminate_on_hole": False,
+            "terminate_on_obst": False,
         },
     )
 
     frames = []
-    env = gym.make("GridWorldNoObst16x16-v1", terminate_on_hole=False, render_mode = "rgb_array")  # Set terminate_on_hole=False to test
+    env = gym.make("GridWorldNoObst8x8-v1", terminate_on_obst=False, render_mode = "rgb_array")  # Set terminate_on_obst=False to test
 
     obs, info = env.reset()
 

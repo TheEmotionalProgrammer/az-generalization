@@ -30,7 +30,6 @@ from log_code.wandb_logs import (
 from policies.policies import PolicyDistribution
 from policies.tree_policies import VisitationPolicy
 
-
 class AlphaZeroController:
     """
     The Controller will be responsible for orchestrating the training of the model. With self play and training.
