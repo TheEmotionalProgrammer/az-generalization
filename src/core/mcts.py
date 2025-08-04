@@ -53,7 +53,9 @@ class MCTS:
             observation=obs,
         )
 
-        self.backup(root_node, 0) # Initialize node visits and height
+        val = self.value_function(root_node) # Estimate the value of the root node
+
+        self.backup(root_node, val) # Initialize node visits and height
 
         while root_node.visits < iterations: # Fixed number of iterations
 
@@ -274,7 +276,9 @@ class NoLoopsMCTS(MCTS):
 
             self.previous_root = root_node
 
-            self.backup(root_node, 0)
+            val = self.value_function(root_node) # Estimate the value of the root node
+
+            self.backup(root_node, val)
 
         else:
 
@@ -304,7 +308,9 @@ class NoLoopsMCTS(MCTS):
 
                 self.previous_root = root_node
 
-                self.backup(root_node, 0)
+                val = self.value_function(root_node) # Estimate the value of the root node
+
+                self.backup(root_node, val)
 
         return root_node
                                 
