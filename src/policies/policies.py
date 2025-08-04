@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 import torch as th
 from core.node import Node
 
-
 def custom_softmax(
     probs: th.Tensor,
     temperature: float | None = None,

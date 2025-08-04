@@ -128,7 +128,7 @@ if __name__ == "__main__":
 
     # Test environment parameters
     parser.add_argument("--test_env_is_slippery", type=bool, default= False, help="Slippery environment")
-    parser.add_argument("--test_env_hole_reward", type=int, default=0, help="Hole reward")
+    parser.add_argument("--test_env_obst_reward", type=int, default=0, help="Hole reward")
     parser.add_argument("--test_env_terminate_on_obst", type=bool, default= False, help="Terminate on hole")
     parser.add_argument("--deviation_type", type=str, default= "bump", help="Deviation type")
 
@@ -148,7 +148,6 @@ if __name__ == "__main__":
     # Additional parameters for NoLoopsMCTS
     parser.add_argument("--reuse_tree", type=bool, default=True, help="Update the estimator")
     parser.add_argument("--block_loops", type=bool, default=True, help="Block loops")
-    parser.add_argument("--loops_threshold", type=float, default=0, help="Loop threshold")
 
     # Parse arguments
     args = parser.parse_args()
@@ -180,7 +179,7 @@ if __name__ == "__main__":
         "id": args.test_env_id,
         "desc": grid_env_descriptions[args.test_env_desc],
         "is_slippery": args.test_env_is_slippery,
-        "hole_reward": args.test_env_hole_reward,
+        "hole_reward": args.test_env_obst_reward,
         "terminate_on_obst": args.test_env_terminate_on_obst,
         "deviation_type": args.deviation_type,
     }  
@@ -218,7 +217,6 @@ if __name__ == "__main__":
         "max_episode_length": args.max_episode_length,
         "rollout_budget": args.rollout_budget,
         "block_loops": args.block_loops,
-        "loops_threshold": args.loops_threshold,
 
     }
 

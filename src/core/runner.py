@@ -9,17 +9,10 @@ from core.mcts import MCTS, RandomRolloutMCTS, NoLoopsMCTS
 from az.azmcts import AlphaZeroMCTS
 from environments.observation_embeddings import ObservationEmbedding
 from policies.policies import PolicyDistribution, custom_softmax
-from core.node import Node
 from core.utils import copy_environment, print_obs
 import matplotlib.pyplot as plt
-
-
 import copy
-
 from log_code.gen_renderings import save_gif_imageio
-
-from policies.utility_functions import get_children_visits
-
 
 def collect_trajectories(tasks, workers=1):
     subprocess.run(["pwd"]) # Just running pwd somehow fixes a multiprocessing issue on HPCs.

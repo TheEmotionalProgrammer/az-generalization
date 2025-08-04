@@ -101,7 +101,6 @@ def agent_from_config(hparams: dict):
                 discount_factor=discount_factor,
                 reuse_tree=hparams["reuse_tree"],
                 block_loops=hparams["block_loops"],
-                loops_threshold= hparams["loops_threshold"],
             )
         elif hparams["agent_type"] == "azmcts":
             agent = AlphaZeroMCTS(
@@ -175,7 +174,7 @@ def eval_from_config(
         print(f"Visualizing {len(trees)} trees...")
         visualize_trees(trees, "tree_visualizations")
             
-    episode_returns, discounted_returns, time_steps, entropies = calc_metrics(
+    episode_returns, discounted_returns, time_steps, _ = calc_metrics(
         results, agent.discount_factor, test_env.action_space.n
     )
 
@@ -195,8 +194,6 @@ def eval_from_config(
         "Evaluation/Mean_Returns": episode_returns.mean().item(),
         "Evaluation/Mean_Discounted_Returns": discounted_returns.mean().item(),
         "Evaluation/Mean_Timesteps": time_steps.mean().item(),
-
-        # "Evaluation/Mean_Entropy": (th.sum(entropies, dim=-1) / time_steps).mean().item(),
         "trajectories": trajectories,
     }
 
@@ -377,11 +374,12 @@ if __name__ == "__main__":
     parser.add_argument("--max_episode_length", type=int, default=100, help="Max episode length")
 
     # Run configurations
-    parser.add_argument("--wandb_logs", type=bool, default= False, help="Enable wandb logging")
+    parser.add_argument("--wandb_logs", type=bool, default=False, help="Enable wandb logging")
     parser.add_argument("--workers", type=int, default= 1, help="Number of workers")
+    parser.add_argument("--save", type=bool, default=True, help="Save results")
 
     # Planning algorithm
-    parser.add_argument("--agent_type", type=str, default= "azmcts_no_loops", help="Agent type")
+    parser.add_argument("--agent_type", type=str, default= "azmcts", help="Agent type")
 
     # Standard AZ planning parameters
     parser.add_argument("--tree_evaluation_policy", type= str, default="visit", help="Tree evaluation policy")
@@ -402,7 +400,7 @@ if __name__ == "__main__":
 
     # Test environment parameters
     parser.add_argument("--test_env_is_slippery", type=bool, default= False, help="Slippery environment")
-    parser.add_argument("--test_env_hole_reward", type=int, default=0, help="Hole reward")
+    parser.add_argument("--test_env_obst_reward", type=int, default=0, help="Hole reward")
     parser.add_argument("--test_env_terminate_on_obst", type=bool, default= False, help="Terminate on hole")
     parser.add_argument("--deviation_type", type=str, default= "bump", help="Deviation type")
 
@@ -413,16 +411,13 @@ if __name__ == "__main__":
     parser.add_argument("--run_full_eval", type=bool, default= True, help="Run type")
 
     # Rendering and logging
-    parser.add_argument("--render", type=bool, default=True, help="Render the environment")
+    parser.add_argument("--render", type=bool, default=False, help="Render the environment")
     parser.add_argument("--visualize_trees", type=bool, default=False, help="Visualize trees")
-    parser.add_argument("--verbose", type=bool, default=True, help="Verbose output")
-
-    parser.add_argument("--save", type=bool, default=True)
+    parser.add_argument("--verbose", type=bool, default=False, help="Verbose output")
 
     # Additional parameters for NoLoopsMCTS
-    parser.add_argument("--reuse_tree", type=bool, default=True, help="Update the estimator")
-    parser.add_argument("--block_loops", type=bool, default=True, help="Block loops")
-    parser.add_argument("--loops_threshold", type=float, default=0, help="Loop threshold")
+    parser.add_argument("--reuse_tree", type=bool, default=False, help="Update the estimator")
+    parser.add_argument("--block_loops", type=bool, default=False, help="Block loops")
 
     # Parse arguments
     args = parser.parse_args()
@@ -454,12 +449,10 @@ if __name__ == "__main__":
         "id": args.test_env_id,
         "desc": grid_env_descriptions[args.test_env_desc],
         "is_slippery": args.test_env_is_slippery,
-        "hole_reward": args.test_env_hole_reward,
+        "hole_reward": args.test_env_obst_reward,
         "terminate_on_obst": args.test_env_terminate_on_obst,
         "deviation_type": args.deviation_type,
     }  
-
-    map_name = args.test_env_desc
 
     # Construct the config
     config_modifications = {
@@ -475,7 +468,7 @@ if __name__ == "__main__":
         "eval_temp": args.eval_temp,
         "dir_epsilon": args.dir_epsilon,
         "dir_alpha": args.dir_alpha,
-        "map_name": map_name,
+        "map_name": args.test_env_desc,
         "test_env": test_env_dict,
         "observation_embedding": observation_embedding,
         "model_file": args.model_file,
@@ -492,7 +485,6 @@ if __name__ == "__main__":
         "max_episode_length": args.max_episode_length,
         "rollout_budget": args.rollout_budget,
         "block_loops": args.block_loops,
-        "loops_threshold": args.loops_threshold,
 
     }
 

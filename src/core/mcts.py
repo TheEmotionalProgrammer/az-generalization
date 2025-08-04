@@ -117,10 +117,9 @@ class MCTS:
         env = copy_environment(node.env)
 
         # Step into the environment
-        observation, reward, terminated, truncated, _ = env.step(action)
-        terminal = terminated
+        observation, reward, terminal, _, _ = env.step(action)
 
-        if terminated:
+        if terminal:
             observation = None
 
         # Create the node for the new state
@@ -163,8 +162,6 @@ class MCTS:
             else:
                 node.height = 0  # Leaf nodes have a height of 0
 
-            # Reset the prior policy and value evaluation (mark as needing update)
-
             node = node.parent
 
     def value_function(
@@ -182,13 +179,12 @@ class MCTS:
     
 class NoLoopsMCTS(MCTS):
 
-    def __init__(self, reuse_tree, block_loops, loops_threshold, *args, **kwargs):
+    def __init__(self, reuse_tree, block_loops, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.previous_root = None
         self.reuse_tree = reuse_tree
         self.block_loops = block_loops
-        self.loops_threshold = loops_threshold
 
     def search(self, env: Env, iterations: int, obs, reward: float) -> Node:
 
@@ -213,10 +209,7 @@ class NoLoopsMCTS(MCTS):
                         
                 eval_node.value_evaluation = value # Set the value of the node
 
-                tuple_obs = tuple(eval_node.observation.flatten()) if isinstance(eval_node.observation, np.ndarray) else eval_node.observation
-
-                if self.block_loops and self.is_close(tuple_obs, visited, self.loops_threshold):
-                    #print(f"Loop detected at {eval_node.observation}, blocking the action {selected_action}")
+                if self.block_loops and eval_node.observation in visited:
                     eval_node.parent.mask[selected_action] = 0
                     eval_node.value_evaluation = 0.0
                     self.backup(eval_node, 0)
@@ -240,7 +233,7 @@ class NoLoopsMCTS(MCTS):
 
         node = from_node
 
-        visited.add(tuple(node.observation.flatten()) if isinstance(node.observation, np.ndarray) else node.observation)
+        visited.add(node.observation)
 
         action = self.root_selection_policy.sample(node, mask=node.mask) # Select which node to step into
 
@@ -249,7 +242,7 @@ class NoLoopsMCTS(MCTS):
                         
         node = node.step(action)  # Step into the chosen node
 
-        visited.add(tuple(node.observation.flatten()) if isinstance(node.observation, np.ndarray) else node.observation)
+        visited.add(node.observation)
 
         while not node.is_terminal():   
 
@@ -260,7 +253,7 @@ class NoLoopsMCTS(MCTS):
 
             node = node.step(action) # Step into the chosen node
 
-            visited.add(tuple(node.observation.flatten()) if isinstance(node.observation, np.ndarray) else node.observation)
+            visited.add(node.observation)
 
         return node, action, visited
     
@@ -314,26 +307,7 @@ class NoLoopsMCTS(MCTS):
                 self.backup(root_node, 0)
 
         return root_node
-    
-    def is_close(self, obs, visited, alpha=0.01):
-        """
-        Checks if obs is within L2 distance alpha of any element in visited.
-        obs and elements of visited can be tuples or numpy arrays.
-        Skips comparisons if obs or v contains None.
-        """
-        if obs is None or (isinstance(obs, (tuple, list, np.ndarray)) and any(x is None for x in obs)):
-            return False
-        obs_arr = np.array(obs)
-        for v in visited:
-            if v is None or (isinstance(v, (tuple, list, np.ndarray)) and any(x is None for x in v)):
-                continue
-            v_arr = np.array(v)
-            if obs_arr.shape != v_arr.shape:
-                continue
-            if np.linalg.norm(obs_arr - v_arr) <= alpha:
-                return True
-        return False
-                            
+                                
 class RandomRolloutMCTS(MCTS):
     def __init__(self, rollout_budget=40, *args, **kwargs):
         super().__init__(*args, **kwargs)
