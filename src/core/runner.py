@@ -1,7 +1,5 @@
 import multiprocessing
-import os
 import subprocess
-from tabnanny import verbose
 
 from tensordict import TensorDict
 import torch as th
@@ -12,7 +10,7 @@ from az.azmcts import AlphaZeroMCTS
 from environments.observation_embeddings import ObservationEmbedding
 from policies.policies import PolicyDistribution, custom_softmax
 from core.node import Node
-from core.utils import copy_environment, observations_equal, actions_dict, print_obs
+from core.utils import copy_environment, print_obs
 import matplotlib.pyplot as plt
 
 

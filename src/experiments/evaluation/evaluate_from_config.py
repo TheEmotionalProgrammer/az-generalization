@@ -217,7 +217,6 @@ def eval_budget_sweep(
     budgets=None,
     num_train_seeds=None,
     num_eval_seeds=None,
-    final = False,
     save = False
 ):
     """
@@ -350,24 +349,12 @@ def eval_budget_sweep(
     df_grouped.drop(columns=["Training Seed mean", "Training Seed std"], inplace=True)
 
     if save:
-        if final:
-            # Check if the folder final exists
-            if not os.path.exists("final"):
-                os.makedirs("final")
-            # Check if the folder map_size exists
-            if not os.path.exists(f"final/{config_copy['map_size']}x{config_copy['map_size']}"):
-                os.makedirs(f"final/{config_copy['map_size']}x{config_copy['map_size']}")
+        # If directory does not exist, create it
+        if not os.path.exists(f"{config_copy['map_size']}x{config_copy['map_size']}"):
+            os.makedirs(f"{config_copy['map_size']}x{config_copy['map_size']}")
 
-            # Save results
-            df_grouped.to_csv(f"final/{config_copy['map_size']}x{config_copy['map_size']}/{run_name}.csv", index=False)
-
-        else:
-            # If directory does not exist, create it
-            if not os.path.exists(f"{config_copy['map_size']}x{config_copy['map_size']}"):
-                os.makedirs(f"{config_copy['map_size']}x{config_copy['map_size']}")
-
-            # Save results
-            df_grouped.to_csv(f"{config_copy['map_size']}x{config_copy['map_size']}/{run_name}.csv", index=False)
+        # Save results
+        df_grouped.to_csv(f"{config_copy['map_size']}x{config_copy['map_size']}/{run_name}.csv", index=False)
 
     # Print final averages with standard errors
     print(f"Final results for {run_name}")
@@ -385,27 +372,30 @@ if __name__ == "__main__":
     # Environment configurations
     parser.add_argument("--ENV", type=str, default="GRIDWORLD", help="Environment name")
     parser.add_argument("--map_size", type=int, default= 8, help="Map size")
-    parser.add_argument("--train_config", type=str, default= "NO_OBST", help="Config desc name")
-    parser.add_argument("--test_config", type=str, default= "NARROW", help="Config desc name")
+    parser.add_argument("--train_config", type=str, default= "MAZE_LR", help="Config desc name")
+    parser.add_argument("--test_config", type=str, default= "MAZE_RL", help="Config desc name")
+    parser.add_argument("--max_episode_length", type=int, default=100, help="Max episode length")
 
     # Run configurations
     parser.add_argument("--wandb_logs", type=bool, default= False, help="Enable wandb logging")
     parser.add_argument("--workers", type=int, default= 1, help="Number of workers")
+
+    # Planning algorithm
+    parser.add_argument("--agent_type", type=str, default= "azmcts_no_loops", help="Agent type")
 
     # Standard AZ planning parameters
     parser.add_argument("--tree_evaluation_policy", type= str, default="visit", help="Tree evaluation policy")
     parser.add_argument("--selection_policy", type=str, default="UCT", help="Selection policy")
     parser.add_argument("--puct_c", type=float, default= 0, help="PUCT parameter")
     parser.add_argument("--planning_budget", type=int, default = 64, help="Planning budget")
+    parser.add_argument("--discount_factor", type=float, default=0.95, help="Discount factor")
+    parser.add_argument("--value_estimate", type=str, default="nn", help="Value estimate method")
 
     # Stochasticity parameters
     parser.add_argument("--eval_temp", type=float, default= 0, help="Temperature in tree evaluation softmax")
     parser.add_argument("--dir_epsilon", type=float, default= 0.0, help="Dirichlet noise parameter epsilon")
     parser.add_argument("--dir_alpha", type=float, default= None, help="Dirichlet noise parameter alpha")
     parser.add_argument("--tree_temperature", type=float, default= None, help="Temperature in tree evaluation softmax")
-
-    # Planning algorithm
-    parser.add_argument("--agent_type", type=str, default= "azmcts", help="Agent type")
 
     # Only for standard MCTS (no NN)
     parser.add_argument("--rollout_budget", type=int, default= 10, help="Rollout budget")
@@ -416,37 +406,23 @@ if __name__ == "__main__":
     parser.add_argument("--test_env_terminate_on_obst", type=bool, default= False, help="Terminate on hole")
     parser.add_argument("--deviation_type", type=str, default= "bump", help="Deviation type")
 
-    # Model file
+    # Model and seeding
     parser.add_argument("--model_file", type=str, default= "", help="Model file")
-
     parser.add_argument( "--train_seeds", type=int, default=10, help="The number of random seeds to use for training.")
-    parser.add_argument("--eval_seeds", type=int, default=1, help="The number of random seeds to use for evaluation.")
+    parser.add_argument("--eval_seeds", type=int, default=10, help="The number of random seeds to use for evaluation.")
+    parser.add_argument("--run_full_eval", type=bool, default= True, help="Run type")
 
     # Rendering and logging
     parser.add_argument("--render", type=bool, default=True, help="Render the environment")
     parser.add_argument("--visualize_trees", type=bool, default=False, help="Visualize trees")
     parser.add_argument("--verbose", type=bool, default=True, help="Verbose output")
 
-    parser.add_argument("--run_full_eval", type=bool, default= True, help="Run type")
-
-    parser.add_argument("--hpc", type=bool, default=False, help="HPC flag")
-
-    parser.add_argument("--value_estimate", type=str, default="nn", help="Value estimate method")
-
-    parser.add_argument("--final", type=bool, default=False)
-
     parser.add_argument("--save", type=bool, default=True)
 
+    # Additional parameters for NoLoopsMCTS
     parser.add_argument("--reuse_tree", type=bool, default=True, help="Update the estimator")
     parser.add_argument("--block_loops", type=bool, default=True, help="Block loops")
-    
     parser.add_argument("--loops_threshold", type=float, default=0, help="Loop threshold")
-
-    parser.add_argument("--plot_tree_densities", type=bool, default=False, help="Plot tree densities")
-
-    parser.add_argument("--max_episode_length", type=int, default=100, help="Max episode length")
-
-    parser.add_argument("--discount_factor", type=float, default=0.95, help="Discount factor")
 
     # Parse arguments
     args = parser.parse_args()
@@ -470,7 +446,7 @@ if __name__ == "__main__":
     elif args.map_size == 16 and args.train_config == "MAZE_LR":
         args.model_file = f"hyper/AZTrain_env=16x16_MAZE_LR_evalpol=visit_iterations=150_budget=64_df=0.95_lr=0.003_nstepslr=2_c=0.2_seed={single_train_seed}/checkpoint.pth"
 
-    challenge = env_challenges[f"GridWorldNoObst{args.map_size}x{args.map_size}-v1"]  # Training environment
+    challenge = env_challenges[f"GridWorldNoObst{args.map_size}x{args.map_size}-v1"] 
 
     observation_embedding = "coordinate"
 
@@ -505,7 +481,6 @@ if __name__ == "__main__":
         "model_file": args.model_file,
         "render": args.render,
         "verbose": args.verbose,
-        "hpc": args.hpc,
         "value_estimate": args.value_estimate,
         "visualize_trees": args.visualize_trees,
         "map_size": args.map_size,
@@ -514,7 +489,6 @@ if __name__ == "__main__":
         "tree_temperature": args.tree_temperature,
         "save": args.save,
         "reuse_tree": args.reuse_tree,
-        "plot_tree_densities": args.plot_tree_densities,
         "max_episode_length": args.max_episode_length,
         "rollout_budget": args.rollout_budget,
         "block_loops": args.block_loops,
@@ -527,6 +501,6 @@ if __name__ == "__main__":
     # Execute the evaluation
 
     if args.run_full_eval:
-        eval_budget_sweep(config=run_config, budgets= [64],  num_train_seeds=args.train_seeds, num_eval_seeds=args.eval_seeds, final = args.final, save=args.save)
+        eval_budget_sweep(config=run_config, budgets= [8, 16, 32, 64, 128],  num_train_seeds=args.train_seeds, num_eval_seeds=args.eval_seeds, save=args.save)
     else: 
         eval_from_config(config=run_config, eval_seed=single_eval_seed)
