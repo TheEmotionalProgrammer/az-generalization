@@ -3,8 +3,8 @@ Welcome to the official repository of the paper **Making AlphaZero Robust to Tes
 
 
 <p align="center">
-  <img src="assets/states_density_edp.gif" alt="Test Environments Visualization" width="49%"/>
-    <img src="assets/states_density_az.gif" alt="Test Environments Visualization" width="49%"/>
+  <img src="assets/states_density_edp.gif" width="48%"/>
+    <img src="assets/states_density_az.gif" width="48%"/>
 </p>
 
 ## Local Installation
