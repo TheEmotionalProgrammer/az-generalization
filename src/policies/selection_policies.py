@@ -3,7 +3,7 @@ import torch as th
 
 from core.node import Node
 from policies.policies import PolicyDistribution
-from policies.utility_functions import get_children_visits, get_mean_values
+from policies.utility_functions import get_children_visits, get_children_mean_values
 
 class SelectionPolicy(PolicyDistribution):
 
@@ -41,7 +41,7 @@ class UCT(SelectionPolicy):
         the total reward of the subtree by the number of visits
         """
 
-        return get_mean_values(node) 
+        return get_children_mean_values(node) 
 
     def _probs(self, node: Node) -> th.Tensor:
         

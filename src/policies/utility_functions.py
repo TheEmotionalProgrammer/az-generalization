@@ -13,7 +13,7 @@ def get_children_visits(node: Node) -> th.Tensor:
 
     return visits
 
-def get_mean_values(node: Node) -> th.Tensor:
+def get_children_mean_values(node: Node) -> th.Tensor:
 
     """
     Returns the value estimates of the children of the node.
