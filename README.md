@@ -1,11 +1,6 @@
+# Improving Robustness of AlphaZero Algorithms to Test-Time Environment Changes
+Welcome to the official repository of the paper **Improving Robustness of AlphaZero Algorithms to Test-Time Environment Changes**. In this repo, we provide the code to reproduce our experiments and, more generally, to further experiment with our implementations of the novel Extra-Deep Planning (EDP) planning algorithm, as well as standard AlphaZero (AZ).
 
-
-
-## Capabilities
-- Logging to TensorBoard
-- Logging to Weights & Biases
-- Customizable environment configurations
-- ... and more!
 ## Getting Started
 For a quick start, feel free to use the notebook [kaggle.ipynb](kaggle.ipynb) which should run on Kaggle/Google Colab with minimal setup. If you want to run the code locally, follow the instructions below.
 
