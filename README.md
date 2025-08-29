@@ -4,7 +4,7 @@ Welcome to the official repository of the paper **Making AlphaZero Robust to Tes
 
 <p align="center">
   <img src="assets/states_density_edp.gif" width="48%"/>
-    <img src="assets/states_density_az.gif" width="48%"/>
+    <img src="assets/states_density_azp.gif" width="48%"/>
 </p>
 
 ## Local Installation
