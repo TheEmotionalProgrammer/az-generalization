@@ -1,5 +1,5 @@
-# Making AlphaZero Algorithms Robust to Test-Time Environment Changes 🛡️
-Welcome to the official repository of the paper **Making AlphaZero Algorithms Robust to Test-Time Environment Changes**. In this repo, we provide the code and resources to reproduce the experiments and results presented in the paper, as well as experimenting with the implementations of our novel Extra-Deep Planning (EDP) Algorithm and standard AlphaZero (AZ).
+# Improving Robustness of AlphaZero Algorithms to Test-Time Environment Changes 🛡️
+Welcome to the official repository of the paper **Improving Robustness of AlphaZero Algorithms to Test-Time Environment Changes**. In this repo, we provide the code and resources to reproduce the experiments and results presented in the paper, as well as experimenting with the implementations of our novel Extra-Deep Planning (EDP) Algorithm and standard AlphaZero (AZ).
 
 
 <p align="center">
