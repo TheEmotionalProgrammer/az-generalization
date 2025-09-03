@@ -2,13 +2,11 @@ slurm*
 
 *.csv
 *.DS_Store
-*.png
 8x8/
 16x16/
 tree_visualizations/
 tensorboard_logs/
 runs/
-#weights/
 */outfiles
 wandb/
 mcts_tree.gv.pdf
