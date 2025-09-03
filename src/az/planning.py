@@ -7,7 +7,7 @@ from mcts_core.node import Node
 class AlphaZeroPlanning(MCTS):
 
     """
-    Implementation of the AlphaZero Monte Carlo Tree Search (AZMCTS) algorithm.
+    Implementation of the AlphaZero planning.
 
     Attributes:
         model (AlphaZeroModel): The AlphaZero model used for value and policy prediction.

@@ -19,6 +19,7 @@ norm_dict = {
 }
 
 class AlphaZeroModel(th.nn.Module):
+    
     """
     The point of this class is to make sure the model is compatible with MCTS:
     The model should take in an observation and return a value and a policy. Check that

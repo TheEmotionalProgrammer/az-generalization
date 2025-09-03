@@ -24,6 +24,7 @@ from mcts_core.policies.policies import PolicyDistribution
 from mcts_core.policies.tree_policies import VisitationPolicy
 
 class AlphaZeroController:
+    
     """
     The Controller will be responsible for orchestrating the training of the model. With self play and training.
     """
