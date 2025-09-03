@@ -27,32 +27,3 @@ def register():
             "hole_reward": 0,
         },
     )
-
-    gym.register( # 16x16 empty grid
-    id="GridWorldNoObst16x16-v1",
-    entry_point="environments.gridworld.grid_world:GridWorldEnv",
-    kwargs={
-        "desc": [
-            "SFFFFFFFFFFFFFFF",
-            "FFFFFFFFFFFFFFFF",
-            "FFFFFFFFFFFFFFFF",
-            "FFFFFFFFFFFFFFFF",
-            "FFFFFFFFFFFFFFFF",
-            "FFFFFFFFFFFFFFFF",
-            "FFFFFFFFFFFFFFFF",
-            "FFFFFFFFFFFFFFFF",
-            "FFFFFFFFFFFFFFFF",
-            "FFFFFFFFFFFFFFFF",
-            "FFFFFFFFFFFFFFFF",
-            "FFFFFFFFFFFFFFFF",
-            "FFFFFFFFFFFFFFFF",
-            "FFFFFFFFFFFFFFFF",
-            "FFFFFFFFFFFFFFFF",
-            "FFFFFFFFFFFFFFFG"
-            ],
-        "map_name": None,
-        "is_slippery": False,
-        "terminate_on_obst": False,
-        "hole_reward": 0,
-    },
-    )

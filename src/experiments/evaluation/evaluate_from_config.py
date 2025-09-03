@@ -8,20 +8,22 @@ import multiprocessing
 import gymnasium as gym
 import wandb
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-from log_code.metrics import calc_metrics
-from experiments.evaluation.eval_agent import eval_agent
-from core.mcts import RandomRolloutMCTS
+from utils.metrics import calc_metrics
 from environments.observation_embeddings import ObservationEmbedding, embedding_dict
-from az.azmcts import AlphaZeroMCTS, AlphaZeroNoLoops
+from az.planning import AlphaZeroPlanning
+from edp.planning import EDP
 
-from az.model import (
+from az.nn import (
     AlphaZeroModel,
     models_dict
 )
 
-from policies.tree_policies import tree_eval_dict
-from policies.selection_policies import selection_dict_fn
+from mcts_core.policies.tree_policies import tree_eval_dict
+from mcts_core.policies.selection_policies import selection_dict_fn
+from mcts_core.runner import eval_agent
 
 from environments.register import register
 
@@ -29,7 +31,9 @@ import argparse
 from experiments.parameters import base_parameters, env_challenges, grid_env_descriptions
 
 
-from log_code.tree_visualizer import visualize_trees
+from utils.tree_visualizer import visualize_trees
+from utils.create_gif import create_gif
+from experiments.evaluation.plotting.plot_state_densities import plot_density, calculate_density
 
 def agent_from_config(hparams: dict):
     
@@ -60,57 +64,45 @@ def agent_from_config(hparams: dict):
         hparams["observation_embedding"]
     ](env.observation_space, hparams["ncols"] if "ncols" in hparams else None)
 
-    if hparams["agent_type"] == "rollout": # Random Rollout MCTS
-        if "rollout_budget" not in hparams:
-            hparams["rollout_budget"] = 40
-        agent = RandomRolloutMCTS(
-            rollout_budget=hparams["rollout_budget"],
+    filename = hparams["model_file"]
+
+    model: AlphaZeroModel = models_dict[hparams["model_type"]].load_model(
+        filename, 
+        env, 
+        False, 
+        hparams["hidden_dim"]
+
+    )
+
+    model.eval()
+
+    if "dir_epsilon" not in hparams:
+        hparams["dir_epsilon"] = 0.0
+        hparams["dir_alpha"] = None
+
+    dir_epsilon = hparams["dir_epsilon"]
+    dir_alpha = hparams["dir_alpha"]
+
+    if hparams["agent_type"] == "edp":
+        agent = EDP(
             root_selection_policy=root_selection_policy,
             selection_policy=selection_policy,
+            model=model,
+            dir_epsilon=dir_epsilon,
+            dir_alpha=dir_alpha,
+            discount_factor=discount_factor,
+            reuse_tree=hparams["reuse_tree"],
+            block_loops=hparams["block_loops"],
+        )
+    elif hparams["agent_type"] == "az":
+        agent = AlphaZeroPlanning(
+            root_selection_policy=root_selection_policy,
+            selection_policy=selection_policy,
+            model=model,
+            dir_epsilon=dir_epsilon,
+            dir_alpha=dir_alpha,
             discount_factor=discount_factor,
         )
-
-    elif hparams["agent_type"] == "azmcts" or hparams["agent_type"] == "azmcts_no_loops": # AlphaZero MCTS
-
-        filename = hparams["model_file"]
-
-        model: AlphaZeroModel = models_dict[hparams["model_type"]].load_model(
-            filename, 
-            env, 
-            False, 
-            hparams["hidden_dim"]
-
-        )
-
-        model.eval()
-
-        if "dir_epsilon" not in hparams:
-            hparams["dir_epsilon"] = 0.0
-            hparams["dir_alpha"] = None
-
-        dir_epsilon = hparams["dir_epsilon"]
-        dir_alpha = hparams["dir_alpha"]
-
-        if hparams["agent_type"] == "azmcts_no_loops":
-            agent = AlphaZeroNoLoops(
-                root_selection_policy=root_selection_policy,
-                selection_policy=selection_policy,
-                model=model,
-                dir_epsilon=dir_epsilon,
-                dir_alpha=dir_alpha,
-                discount_factor=discount_factor,
-                reuse_tree=hparams["reuse_tree"],
-                block_loops=hparams["block_loops"],
-            )
-        elif hparams["agent_type"] == "azmcts":
-            agent = AlphaZeroMCTS(
-                root_selection_policy=root_selection_policy,
-                selection_policy=selection_policy,
-                model=model,
-                dir_epsilon=dir_epsilon,
-                dir_alpha=dir_alpha,
-                discount_factor=discount_factor,
-            )
         
     return (
         agent,
@@ -139,6 +131,8 @@ def eval_from_config(
         hparams = wandb.config
     else:
         hparams = config
+
+    register()  # Register custom environments
 
     agent, tree_evaluation_policy, observation_embedding, planning_budget = (
         agent_from_config(hparams)
@@ -173,6 +167,37 @@ def eval_from_config(
         trees = trees[0]
         print(f"Visualizing {len(trees)} trees...")
         visualize_trees(trees, "tree_visualizations")
+    
+    if hparams["plot_tree_densities"]:
+        results, trees = results
+        trees = trees[0]
+
+        test_desc = hparams["test_env"]["desc"]
+
+        obst_coords = []
+        for i in range(len(test_desc)):
+            for j in range(len(test_desc[0])):
+                if test_desc[i][j] == "H":
+                    obst_coords.append((i, j))
+        
+        for i, tree in enumerate(trees):
+            states_density = calculate_density(tree, len(test_desc[0]), len(test_desc))
+            
+
+            states_cmap = sns.diverging_palette(10, 120, as_cmap=True, center="light")
+            
+            ax = plot_density(states_density, tree.observation, obst_coords, len(test_desc[0]), len(test_desc), cmap=states_cmap)
+
+            ax.set_title(f"State Visitation Counts of AZ at step {i}")
+
+            # If no path to folder, create it
+            if not os.path.exists("states_density"):
+                os.makedirs("states_density")
+
+            plt.savefig(f"states_density/{i}.png", pad_inches=1)
+            plt.close()
+
+        create_gif("states_density")
             
     episode_returns, discounted_returns, time_steps, _ = calc_metrics(
         results, agent.discount_factor, test_env.action_space.n
@@ -199,7 +224,7 @@ def eval_from_config(
 
     if use_wandb:
         run.log(data=eval_res)
-        run.log_code(root="./src")
+        run.utils(root="./src")
         # Finish the WandB run
         run.finish()
     
@@ -228,18 +253,18 @@ def eval_budget_sweep(
         num_eval_seeds (int): Number of evaluation seeds.
     """
 
-    if config["ENV"] == "GRIDWORLD":
-        if config["agent_type"] == "azmcts":
+    if config["env"] == "GRIDWORLD":
+        if config["agent_type"] == "az":
             run_name = f"Algorithm_({config['agent_type']})_EvalPol_({config['tree_evaluation_policy']})_SelPol_({config['selection_policy']})_c_({config['puct_c']})_{config['map_size']}x{config['map_size']}_{config['train_config']}_{config['test_config']}"
-        elif config["agent_type"] == "azmcts_no_loops":
+        elif config["agent_type"] == "edp":
             run_name = f"Algorithm_({config['agent_type']})_EvalPol_({config['tree_evaluation_policy']})_SelPol_({config['selection_policy']})_c_({config['puct_c']})_treuse_{config['reuse_tree']}_bloops_{config['block_loops']}_ttemp_({config['tree_temperature']})_{config['map_size']}x{config['map_size']}_{config['train_config']}_{config['test_config']}"
         else:
             raise ValueError(f"Unknown agent type: {config['agent_type']}") 
         
-    if config["ENV"] == "GRIDWORLD" and config["test_env"]["deviation_type"] == "clockwise":
+    if config["env"] == "GRIDWORLD" and config["test_env"]["deviation_type"] == "clockwise":
         run_name = "CW_" + run_name 
     
-    if config["ENV"] == "GRIDWORLD" and config["test_env"]["deviation_type"] == "counter_clockwise":
+    if config["env"] == "GRIDWORLD" and config["test_env"]["deviation_type"] == "counter_clockwise":
         run_name = "CCW_" + run_name
     
     print(f"Run Name: {run_name}")
@@ -269,18 +294,12 @@ def eval_budget_sweep(
     for model_seed in range(num_train_seeds):
         print(f"Training Seed: {model_seed}")
 
-        if config["ENV"] == "GRIDWORLD":
-            if config["map_size"] == 8 and config["train_config"] == "NO_OBST":
-                model_file = f"hyper/AZTrain_env=8x8_NO_OBST_evalpol=visit_iterations=50_budget=64_df=0.95_lr=0.001_nstepslr=2_seed={model_seed}/checkpoint.pth"
-            elif config["map_size"] == 16 and config["train_config"] == "NO_OBST":
-                model_file = f"hyper/AZTrain_env=16x16_NO_OBST_evalpol=visit_iterations=60_budget=128_df=0.95_lr=0.003_nstepslr=2_seed={model_seed}/checkpoint.pth"
-            elif config["map_size"] == 8 and config["train_config"] == "MAZE_RL":
-                model_file = f"hyper/AZTrain_env=8x8_MAZE_RL_evalpol=visit_iterations=150_budget=64_df=0.95_lr=0.001_nstepslr=2_c=0.5_seed={model_seed}/checkpoint.pth"
+        if config["env"] == "GRIDWORLD":
+            if config["map_size"] == 8 and config["train_config"] == "MAZE_RL":
+                model_file = f"weights/AZTrain_env=8x8_MAZE_RL_evalpol=visit_iterations=150_budget=64_df=0.95_lr=0.001_nstepslr=2_c=0.5_seed={model_seed}/checkpoint.pth"
             elif config["map_size"] == 8 and config["train_config"] == "MAZE_LR":
-                model_file = f"hyper/AZTrain_env=8x8_MAZE_LR_evalpol=visit_iterations=100_budget=64_df=0.95_lr=0.001_nstepslr=2_c=0.5_seed={model_seed}/checkpoint.pth"
-            elif config["map_size"] == 16 and config["train_config"] == "MAZE_LR":
-                model_file = f"hyper/AZTrain_env=16x16_MAZE_LR_evalpol=visit_iterations=150_budget=64_df=0.95_lr=0.003_nstepslr=2_c=0.2_seed={model_seed}/checkpoint.pth"
-
+                model_file = f"weights/AZTrain_env=8x8_MAZE_LR_evalpol=visit_iterations=100_budget=64_df=0.95_lr=0.001_nstepslr=2_c=0.5_seed={model_seed}/checkpoint.pth"
+           
         for budget in budgets:
             eval_results = []  # Store results across evaluation seeds for a given training seed
 
@@ -367,7 +386,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="AlphaZero Evaluation Configuration")
 
     # Environment configurations
-    parser.add_argument("--ENV", type=str, default="GRIDWORLD", help="Environment name")
+    parser.add_argument("--env", type=str, default="GRIDWORLD", help="Environment name")
     parser.add_argument("--map_size", type=int, default= 8, help="Map size")
     parser.add_argument("--train_config", type=str, default= "MAZE_LR", help="Config desc name")
     parser.add_argument("--test_config", type=str, default= "MAZE_RL", help="Config desc name")
@@ -376,27 +395,28 @@ if __name__ == "__main__":
     # Run configurations
     parser.add_argument("--wandb_logs", type=bool, default=False, help="Enable wandb logging")
     parser.add_argument("--workers", type=int, default= 1, help="Number of workers")
-    parser.add_argument("--save", type=bool, default=True, help="Save results")
+    parser.add_argument("--save", type=bool, default=False, help="Save results")
 
     # Planning algorithm
-    parser.add_argument("--agent_type", type=str, default= "azmcts", help="Agent type")
+    parser.add_argument("--agent_type", type=str, default= "edp", help="Agent type")
 
     # Standard AZ planning parameters
     parser.add_argument("--tree_evaluation_policy", type= str, default="visit", help="Tree evaluation policy")
     parser.add_argument("--selection_policy", type=str, default="UCT", help="Selection policy")
     parser.add_argument("--puct_c", type=float, default= 0, help="PUCT parameter")
-    parser.add_argument("--planning_budget", type=int, default = 64, help="Planning budget")
+    parser.add_argument("--planning_budget", type=int, default = 32, help="Planning budget")
     parser.add_argument("--discount_factor", type=float, default=0.95, help="Discount factor")
     parser.add_argument("--value_estimate", type=str, default="nn", help="Value estimate method")
+
+    # Additional parameters for EDP
+    parser.add_argument("--reuse_tree", type=bool, default=True, help="Update the estimator")
+    parser.add_argument("--block_loops", type=bool, default=True, help="Block loops")
 
     # Stochasticity parameters
     parser.add_argument("--eval_temp", type=float, default= 0, help="Temperature in tree evaluation softmax")
     parser.add_argument("--dir_epsilon", type=float, default= 0.0, help="Dirichlet noise parameter epsilon")
     parser.add_argument("--dir_alpha", type=float, default= None, help="Dirichlet noise parameter alpha")
     parser.add_argument("--tree_temperature", type=float, default= None, help="Temperature in tree evaluation softmax")
-
-    # Only for standard MCTS (no NN)
-    parser.add_argument("--rollout_budget", type=int, default= 10, help="Rollout budget")
 
     # Test environment parameters
     parser.add_argument("--test_env_is_slippery", type=bool, default= False, help="Slippery environment")
@@ -413,33 +433,16 @@ if __name__ == "__main__":
     # Rendering and logging
     parser.add_argument("--render", type=bool, default=False, help="Render the environment")
     parser.add_argument("--visualize_trees", type=bool, default=False, help="Visualize trees")
-    parser.add_argument("--verbose", type=bool, default=False, help="Verbose output")
-
-    # Additional parameters for NoLoopsMCTS
-    parser.add_argument("--reuse_tree", type=bool, default=False, help="Update the estimator")
-    parser.add_argument("--block_loops", type=bool, default=False, help="Block loops")
+    parser.add_argument("--plot_tree_densities", type=bool, default=False, help="Plot tree state densities")
+    parser.add_argument("--verbose", type=bool, default=True, help="Verbose output")
 
     # Parse arguments
     args = parser.parse_args()
 
-    single_train_seed = 2 # Only for single run
-    single_eval_seed = 5 # Only for single run
-
-    ENV = args.ENV
+    env = args.env
 
     args.test_env_id = f"GridWorldNoObst{args.map_size}x{args.map_size}-v1"
     args.test_env_desc = f"{args.map_size}x{args.map_size}_{args.test_config}"
-
-    if args.map_size == 8 and args.train_config == "NO_OBST":
-        args.model_file = f"hyper/AZTrain_env=8x8_NO_OBST_evalpol=visit_iterations=50_budget=64_df=0.95_lr=0.001_nstepslr=2_seed={single_train_seed}/checkpoint.pth"
-    elif args.map_size == 16 and args.train_config == "NO_OBST":
-        args.model_file = f"hyper/AZTrain_env=16x16_NO_OBST_evalpol=visit_iterations=60_budget=128_df=0.95_lr=0.003_nstepslr=2_seed={single_train_seed}/checkpoint.pth"
-    elif args.map_size == 8 and args.train_config == "MAZE_RL":
-        args.model_file = f"hyper/AZTrain_env=8x8_MAZE_RL_evalpol=visit_iterations=150_budget=64_df=0.95_lr=0.001_nstepslr=2_c=0.5_seed={single_train_seed}/checkpoint.pth"
-    elif args.map_size == 8 and args.train_config == "MAZE_LR":
-        args.model_file = f"hyper/AZTrain_env=8x8_MAZE_LR_evalpol=visit_iterations=100_budget=64_df=0.95_lr=0.001_nstepslr=2_c=0.5_seed={single_train_seed}/checkpoint.pth"
-    elif args.map_size == 16 and args.train_config == "MAZE_LR":
-        args.model_file = f"hyper/AZTrain_env=16x16_MAZE_LR_evalpol=visit_iterations=150_budget=64_df=0.95_lr=0.003_nstepslr=2_c=0.2_seed={single_train_seed}/checkpoint.pth"
 
     challenge = env_challenges[f"GridWorldNoObst{args.map_size}x{args.map_size}-v1"] 
 
@@ -454,9 +457,18 @@ if __name__ == "__main__":
         "deviation_type": args.deviation_type,
     }  
 
+    single_train_seed = 1 
+    single_eval_seed = 1 
+    if args.map_size == 8 and args.train_config == "MAZE_RL":
+        args.model_file = f"weights/AZTrain_env=8x8_MAZE_RL_evalpol=visit_iterations=150_budget=64_df=0.95_lr=0.001_nstepslr=2_c=0.5_seed={single_train_seed}/checkpoint.pth"
+    elif args.map_size == 8 and args.train_config == "MAZE_LR":
+        args.model_file = f"weights/AZTrain_env=8x8_MAZE_LR_evalpol=visit_iterations=100_budget=64_df=0.95_lr=0.001_nstepslr=2_c=0.5_seed={single_train_seed}/checkpoint.pth"
+    else:
+        raise ValueError("Please provide a valid model file for evaluation.")
+
     # Construct the config
     config_modifications = {
-        "ENV": args.ENV,
+        "env": args.env,
         "wandb_logs": args.wandb_logs,
         "workers": args.workers,
         "tree_evaluation_policy": args.tree_evaluation_policy,
@@ -476,6 +488,7 @@ if __name__ == "__main__":
         "verbose": args.verbose,
         "value_estimate": args.value_estimate,
         "visualize_trees": args.visualize_trees,
+        "plot_tree_densities": args.plot_tree_densities,
         "map_size": args.map_size,
         "train_config": args.train_config,
         "test_config": args.test_config,
@@ -483,7 +496,6 @@ if __name__ == "__main__":
         "save": args.save,
         "reuse_tree": args.reuse_tree,
         "max_episode_length": args.max_episode_length,
-        "rollout_budget": args.rollout_budget,
         "block_loops": args.block_loops,
 
     }

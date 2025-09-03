@@ -2,8 +2,6 @@ from abc import ABC, abstractmethod
 import gymnasium as gym
 import numpy as np
 import torch as th
-from typing import Dict
-
 
 class ObservationEmbedding(ABC):
     observation_space: gym.Space

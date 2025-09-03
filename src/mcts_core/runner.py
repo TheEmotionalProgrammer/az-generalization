@@ -1,0 +1,155 @@
+import multiprocessing
+import subprocess
+
+from tensordict import TensorDict
+import torch as th
+import gymnasium as gym
+import numpy as np
+from mcts_core.planning import MCTS
+from environments.observation_embeddings import ObservationEmbedding
+from mcts_core.policies.policies import PolicyDistribution, custom_softmax
+from mcts_core.utils import print_obs
+from copy import deepcopy 
+from utils.gen_renderings import save_gif_imageio
+from typing import List
+
+def eval_agent(agent: MCTS, env: gym.Env, tree_evaluation_policy: PolicyDistribution, observation_embedding: ObservationEmbedding, planning_budget: int, max_episode_length: int, seeds: List[int | None], temperature: float | None, workers=1, render=False, return_trees=False, verbose=False):
+    assert isinstance(env.action_space, gym.spaces.Discrete)
+    tasks = [(agent, env, tree_evaluation_policy, observation_embedding, planning_budget, max_episode_length, seed, temperature, render, return_trees, verbose) for seed in seeds]
+    results = collect_trajectories(
+        tasks,
+        workers=workers,
+    )
+    return results
+
+def collect_trajectories(tasks, workers=1):
+    subprocess.run(["pwd"]) # Just running pwd somehow fixes a multiprocessing issue on HPCs.
+    if workers > 1:
+        with multiprocessing.Pool(workers) as pool:
+            # Run the tasks using map
+            results = pool.map(run_episode_process, tasks)
+    else:
+        results = [run_episode_process(task) for task in tasks] 
+
+    # check if the results are tuples, if so, unpack them
+    if all(isinstance(result, tuple) for result in results):
+        trajectories, trees = zip(*results)
+        res_tensor = th.stack(trajectories)
+        return res_tensor, trees
+    else:
+        res_tensor =  th.stack(results)
+        return res_tensor
+
+def run_episode_process(args):
+
+    """Wrapper function for multiprocessing that unpacks arguments and runs a single episode with the specified algorithm."""
+    # Return the trajectory (and optional trees) so callers can stack results
+    return run_episode(*args)
+
+@th.no_grad()
+def run_episode(
+    solver: MCTS,
+    env: gym.Env,
+    tree_evaluation_policy: PolicyDistribution,
+    observation_embedding: ObservationEmbedding,
+    planning_budget=1000,
+    max_steps=1000,
+    seed=None,
+    temperature=None,
+    render=False,
+    return_trees=False,
+    verbose=False,
+):
+    assert isinstance(env.action_space, gym.spaces.Discrete)
+    n = int(env.action_space.n)
+
+    if seed is not None:
+        th.manual_seed(seed)
+        np.random.seed(seed)
+
+    observation, _ = env.reset(seed=seed)
+
+    if verbose:
+        print(f"Env: obs = {print_obs(env, observation)}")
+
+    if render:
+        vis_env = deepcopy(env)  # Use the utility function
+        vis_env.unwrapped.render_mode = "rgb_array"
+        frames = [vis_env.render()]
+
+    observation_tensor: th.Tensor = observation_embedding.obs_to_tensor(observation, dtype=th.float32)
+
+    trajectory = TensorDict(
+        source={
+            "observations": th.zeros(
+                max_steps,
+                observation_embedding.obs_dim(),
+                dtype=observation_tensor.dtype,
+            ),
+            "rewards": th.zeros(max_steps, dtype=th.float32),
+            "policy_distributions": th.zeros(max_steps, n, dtype=th.float32),
+            "actions": th.zeros(max_steps, dtype=th.int64),
+            "mask": th.zeros(max_steps, dtype=th.bool),
+            "terminals": th.zeros(max_steps, dtype=th.bool),
+            "root_values": th.zeros(max_steps, dtype=th.float32),
+        },
+        batch_size=[max_steps],
+    )
+
+    if return_trees:
+        trees = []
+
+    tree = solver.search(env, planning_budget, observation, 0.0)
+
+    step = 0
+
+    while step < max_steps:
+
+        policy_dist = tree_evaluation_policy.softmaxed_distribution(tree, action_mask=tree.mask)
+
+        if return_trees:
+            tree_copy = deepcopy(tree)
+            trees.append(tree_copy)
+
+        distribution = th.distributions.Categorical(probs=custom_softmax(policy_dist.probs, temperature, None))
+
+        action = distribution.sample().item()
+
+        new_obs, reward, terminated, truncated, _ = env.step(action)
+
+        if verbose:
+            print(f"Env: step = {step}, obs = {print_obs(env, new_obs)}, reward = {reward}, terminated = {terminated}, truncated = {truncated}")
+
+        if render:
+            vis_env.step(action)
+            frames.append(vis_env.render())
+
+        assert not truncated
+
+        next_terminal = terminated
+        trajectory["observations"][step] = observation_tensor
+        trajectory["rewards"][step] = reward
+        trajectory["policy_distributions"][step] = policy_dist.probs
+        trajectory["actions"][step] = action
+        trajectory["mask"][step] = True
+        trajectory["terminals"][step] = next_terminal
+
+        if next_terminal or truncated:
+            break
+
+        tree = solver.search(env, planning_budget, new_obs, reward)
+
+        new_observation_tensor = observation_embedding.obs_to_tensor(new_obs, dtype=th.float32)
+        observation_tensor = new_observation_tensor
+
+        step += 1
+
+    if render:
+        fps = 5
+        save_gif_imageio(frames, output_path=f"gifs/output.gif", fps=fps)
+
+    if return_trees:
+        return trajectory, trees
+
+    return trajectory
+

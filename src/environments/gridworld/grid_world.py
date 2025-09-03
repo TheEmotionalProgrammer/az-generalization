@@ -5,7 +5,7 @@ from gymnasium.envs.toy_text.utils import categorical_sample
 import sys
 
 sys.path.append("src/")
-from log_code.gen_renderings import save_gif_imageio
+from utils.gen_renderings import save_gif_imageio
 
 grid_actions_dict = {
     0: "Left",

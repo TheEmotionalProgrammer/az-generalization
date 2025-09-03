@@ -1,19 +1,10 @@
 import sys
 import os
 
-# ---------------------------------------------------------
-# 1. Move the offline-flag check and environment variable
-#    setting BEFORE importing wandb.
-# ---------------------------------------------------------
-if "--offline" in sys.argv:
-    os.environ["WANDB_MODE"] = "offline"
-
 sys.path.append("src/")
 import multiprocessing
-import numpy as np
 import gymnasium as gym
 import argparse
-from torch.utils.tensorboard.writer import SummaryWriter
 import torch as th
 
 from torchrl.data import (
@@ -21,27 +12,23 @@ from torchrl.data import (
     TensorDictReplayBuffer,
 )
 
-# ---------------------------------------------------------
-# Now import wandb AFTER setting WANDB_MODE
-# ---------------------------------------------------------
 import wandb
 
-import experiments.parameters as parameters
 from environments.observation_embeddings import ObservationEmbedding, embedding_dict
-from az.alphazero import AlphaZeroController
-from az.azmcts import AlphaZeroMCTS
-from az.model import (
+from az.controller import AlphaZeroController
+from az.planning import AlphaZeroPlanning
+from az.nn import (
     AlphaZeroModel,
     activation_function_dict,
     norm_dict,
     models_dict,
 )
-from policies.tree_policies import tree_eval_dict
-from policies.selection_policies import selection_dict_fn
+from mcts_core.policies.tree_policies import tree_eval_dict
+from mcts_core.policies.selection_policies import selection_dict_fn
 
 from environments.register import register
 
-from experiments.parameters import base_parameters, env_challenges, grid_env_descriptions, parking_simple_obstacles
+from experiments.parameters import base_parameters, env_challenges, grid_env_descriptions
 
 
 def train_from_config(
@@ -52,7 +39,6 @@ def train_from_config(
     performance=True,
     tags=None,
     seed=None,
-    offline=False,
 ):
     if tags is None:
         tags = []
@@ -62,42 +48,19 @@ def train_from_config(
         tags.append("performance")
 
     # Define run_name before initializing wandb
-    if config['ENV'] == "GRIDWORLD":
+    if config['env'] == "GRIDWORLD":
         run_name = f"AZTrain_env={config['name_config']}_evalpol={config['tree_evaluation_policy']}_iterations={config['iterations']}_budget={config['planning_budget']}_df={config['discount_factor']}_lr={config['learning_rate']}_nstepslr={config['n_steps_learning']}_c={config['puct_c']}_seed={seed}"
 
-    # Create the folder ./wandb_logs if it does not exist
-    if not os.path.exists("./wandb_logs"):
-        os.makedirs("./wandb_logs")
-    if not os.path.exists(f"./wandb_logs/{run_name}"):
-        os.makedirs(f"./wandb_logs/{run_name}")
-
-    # -----------------------------------------------------
-    # 2. If offline, do NOT pass `entity=...` and pass `mode="offline"`.
-    # -----------------------------------------------------
-    if offline:
-        # Make sure environment variable is set (just in case)
-        os.environ["WANDB_MODE"] = "offline"
-        # Also set mode="offline" in wandb.init
-        run = wandb.init(
-            project=project_name,
-            name=run_name,  # Explicitly set the run name
-            config=config,
-            tags=tags,
-            mode="offline",  # explicitly offline
-            dir=f"./wandb_logs/{run_name}",  # Set the directory for offline runs
-        )
-    else:
-        # Normal (online) initialization
-        settings = wandb.Settings(job_name=job_name)
-        run = wandb.init(
-            project=project_name,
-            name=run_name,  # Explicitly set the run name
-            entity=entity,    # only pass entity if online
-            settings=settings,
-            config=config,
-            tags=tags,
-            dir=f"./wandb_logs/{run_name}",  # Set the directory for offline runs
-        )
+    # Normal (online) initialization
+    settings = wandb.Settings(job_name=job_name)
+    run = wandb.init(
+        project=project_name,
+        name=run_name,  # Explicitly set the run name
+        entity=entity,    # only pass entity if online
+        settings=settings,
+        config=config,
+        tags=tags,
+    )
 
     assert run is not None
     hparams = wandb.config
@@ -154,8 +117,8 @@ def train_from_config(
     dir_epsilon = hparams["dir_epsilon"]
     dir_alpha = hparams["dir_alpha"]
 
-    if hparams["agent_type"] == "azmcts":
-        agent = AlphaZeroMCTS(
+    if hparams["agent_type"] == "az":
+        agent = AlphaZeroPlanning(
             root_selection_policy=root_selection_policy,
             selection_policy=selection_policy,
             model=model,
@@ -183,9 +146,7 @@ def train_from_config(
 
     replay_buffer = TensorDictReplayBuffer(storage=LazyTensorStorage(replay_buffer_size))
 
-    log_dir = f"./tensorboard_logs/hyper/{run_name}"
-    writer = SummaryWriter(log_dir=log_dir)
-    run_dir = f"./hyper/{run_name}"
+    run_dir = f"./weights/{run_name}"
 
     controller = AlphaZeroController(
         env,
@@ -207,7 +168,6 @@ def train_from_config(
         n_steps_learning=hparams["n_steps_learning"],
         checkpoint_interval=-1 if performance else 10,
         use_visit_count=bool(hparams["use_visit_count"]),
-        writer=writer,
         save_plots=not performance,
         batch_size=sample_batch_size,
     )
@@ -217,64 +177,58 @@ def train_from_config(
 
     env.close()
 
-    # If you are offline, skip code-snapshot or do it if you want local artifact
-    if not offline:
-        run.log_code(root="./src")
-
+    run.utils(root="./src")
     run.finish()
-    return metrics
 
+    return metrics
 
 def sweep_agent():
     train_from_config(performance=True)
 
-
 def run_single(seed=None):
     return train_from_config(config=run_config, performance=False, seed=seed)
 
-
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="AlphaZero Training with a specific seed.")
-    parser.add_argument("--ENV", type=str, default="PARKING_ACC", help="The environment to train on.")
-    parser.add_argument("--agent_type", type=str, default="azmcts", help="The type of agent to train.")
-    parser.add_argument("--workers", type=int, default=6, help="Number of workers")
-    parser.add_argument("--iterations", type=int, default=1000, help="Number of iterations")
+    parser = argparse.ArgumentParser(description="AlphaZero Training.")
+
+    # For parallel CPU episodes sampling (1 = no parallelism)
+    parser.add_argument("--workers", type=int, default=1, help="Number of workers")
+
+    # Environment Parameters
+    parser.add_argument("--env", type=str, default="GRIDWORLD", help="The environment to train on.")
     parser.add_argument("--max_episode_length", type=int, default=200, help="Max episode length")
-    parser.add_argument("--tree_evaluation_policy", type=str, default="visit", help="Tree evaluation policy")
-    parser.add_argument("--selection_policy", type=str, default="PUCT", help="Selection policy")
-    parser.add_argument("--planning_budget", type=int, default=128, help="Planning budget")
-    parser.add_argument("--puct_c", type=float, default=1, help="PUCT constant")
-    parser.add_argument("--n_steps_learning", type=int, default=2, help="Number of steps for learning")
-    parser.add_argument("--discount_factor", type=float, default=0.99, help="Discount factor")
-    parser.add_argument("--learning_rate", type=float, default=0.0001, help="Learning rate")
-    parser.add_argument("--value_loss_weight", type=float, default=150, help="Value loss weight")
-    parser.add_argument("--policy_loss_weight", type=float, default=1, help="Policy loss weight")
-    parser.add_argument("--reg_loss_weight", type=float, default=0.0, help="Regularization loss weight")
-    parser.add_argument("--replay_buffer_multiplier", type=int, default=10, help="Replay buffer multiplier")
-    parser.add_argument("--episodes_per_iteration", type=int, default=12, help="Episodes per iteration")
-    parser.add_argument("--norm_layer", type=str, default="batch_norm", help="Normalization layer")
-    parser.add_argument("--layers", type=int, default=3, help="Number of layers")
-    parser.add_argument("--scale_reward", type=bool, default=False, help="Scale reward")
     parser.add_argument("--map_size", type=int, default=8, help="The size of the map.")
     parser.add_argument("--train_env_desc", type=str, default="8x8_MAZE_RL", help="Environment description.")
     parser.add_argument("--train_slippery", type=bool, default=False, help="Whether the environment is slippery.")
     parser.add_argument("--train_hole_reward", type=float, default=0.0, help="Reward for falling into a hole.")
     parser.add_argument("--train_terminate_on_obst", type=bool, default=False, help="Terminate if hole is encountered?")
     parser.add_argument("--train_deviation_type", type=str, default="bump", help="The type of deviation to use.")
-    parser.add_argument("--num_asteroids", type=int, default=0, help="Number of asteroids")
     parser.add_argument("--train_seed", type=int, default=0, help="The random seed to use for training.")
 
-    # ---------------------------------------------------------
-    # 3. Set default to False so you can pass --offline to enable
-    # ---------------------------------------------------------
-    parser.add_argument("--offline", action="store_true", help="Run in offline mode (no W&B sync).")
+    # Planning Parameters
+    parser.add_argument("--agent_type", type=str, default="az", help="The type of agent to train.")
+    parser.add_argument("--tree_evaluation_policy", type=str, default="visit", help="Tree evaluation policy")
+    parser.add_argument("--selection_policy", type=str, default="PUCT", help="Selection policy")
+    parser.add_argument("--planning_budget", type=int, default=20, help="Planning budget")
+    parser.add_argument("--puct_c", type=float, default=1, help="PUCT constant")
+
+    # Learning & NN Parameters
+    parser.add_argument("--iterations", type=int, default=10, help="Number of iterations")
+    parser.add_argument("--discount_factor", type=float, default=0.95, help="Discount factor")
+    parser.add_argument("--norm_layer", type=str, default="batch_norm", help="Normalization layer")
+    parser.add_argument("--layers", type=int, default=3, help="Number of layers")
+    parser.add_argument("--learning_rate", type=float, default=0.0001, help="Learning rate")
+    parser.add_argument("--value_loss_weight", type=float, default=1, help="Value loss weight")
+    parser.add_argument("--policy_loss_weight", type=float, default=1, help="Policy loss weight")
+    parser.add_argument("--reg_loss_weight", type=float, default=0.0, help="Regularization loss weight")
+    parser.add_argument("--n_steps_learning", type=int, default=2, help="Number of steps for learning")
+    parser.add_argument("--replay_buffer_multiplier", type=int, default=10, help="Replay buffer multiplier")
+    parser.add_argument("--episodes_per_iteration", type=int, default=12, help="Episodes per iteration")
 
     args = parser.parse_args()
 
-    ENV = args.ENV
-
-    if ENV == "GRIDWORLD":
+    if args.env == "GRIDWORLD":
         challenge = env_challenges[f"GridWorldNoObst{args.map_size}x{args.map_size}-v1"]
         challenge["env_params"]["desc"] = grid_env_descriptions[args.train_env_desc]
         challenge["env_params"]["is_slippery"] = args.train_slippery
@@ -285,7 +239,7 @@ if __name__ == "__main__":
         observation_embedding = "coordinate"
 
     config_modifications = {
-        "ENV": ENV,
+        "env": args.env,
         "workers": args.workers,
         "tree_evaluation_policy": args.tree_evaluation_policy,
         "selection_policy": args.selection_policy,
@@ -304,10 +258,8 @@ if __name__ == "__main__":
         "replay_buffer_multiplier": args.replay_buffer_multiplier,
         "episodes_per_iteration": args.episodes_per_iteration,
         "max_episode_length": args.max_episode_length,
-        "offline": args.offline,
         "norm_layer": args.norm_layer,
         "layers": args.layers,
-        "bump_on_collision": args.bump_on_collision,
     }
 
     run_config = {**base_parameters, **challenge, **config_modifications}
@@ -316,5 +268,4 @@ if __name__ == "__main__":
         config=run_config,
         performance=False,
         seed=args.train_seed,
-        offline=args.offline
     )

@@ -29,7 +29,7 @@ def visualize_gridworld(name, desc):
             colors[i, j] = color_map.get(cell, 'white')  # Default to white for unknown
     
     # Plot the grid
-    fig, ax = plt.subplots(figsize=(grid_size, grid_size))
+    _, ax = plt.subplots(figsize=(grid_size, grid_size))
     for i in range(grid_size):
         for j in range(grid_size):
             # Draw the cell with a border
@@ -49,5 +49,5 @@ def visualize_gridworld(name, desc):
 
 if __name__ == "__main__":
     map_size = 8
-    CONFIG = "NARROW"
+    CONFIG = "MAZE_LR"
     visualize_gridworld(f"{map_size}x{map_size}_{CONFIG}", grid_env_descriptions[f"{map_size}x{map_size}_{CONFIG}"])

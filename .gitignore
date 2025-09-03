@@ -8,7 +8,7 @@ slurm*
 tree_visualizations/
 tensorboard_logs/
 runs/
-#hyper/
+#weights/
 */outfiles
 wandb/
 mcts_tree.gv.pdf
@@ -141,7 +141,7 @@ celerybeat.pid
 .venv
 env/
 venv/
-ENV/
+env/
 env.bak/
 venv.bak/
 
