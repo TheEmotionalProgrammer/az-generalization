@@ -2,6 +2,7 @@ slurm*
 
 *.csv
 *.DS_Store
+.DS_Store
 8x8/
 16x16/
 tree_visualizations/
