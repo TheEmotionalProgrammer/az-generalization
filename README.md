@@ -80,5 +80,13 @@ The folder `weights` contains the pre-trained weights of the policy-value neural
 If you use this code or the results obtained from it in your research, please cite our paper:
 
 ```
-insert citation template
+@misc{tamassia2025improvingrobustnessalphazeroalgorithms,
+      title={Improving Robustness of AlphaZero Algorithms to Test-Time Environment Changes}, 
+      author={Isidoro Tamassia and Wendelin Böhmer},
+      year={2025},
+      eprint={2509.04317},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2509.04317}, 
+}
 ```
